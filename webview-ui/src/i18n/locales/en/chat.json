@@ -376,7 +376,15 @@
 	},
 	"reasoning": {
 		"thinking": "Thinking",
-		"seconds": "{{count}}s"
+		"seconds": "{{count}}s",
+		"off": "Reasoning off",
+		"title": "Reasoning",
+		"description": "Reasoning level sent with every request. A level your endpoint doesn't accept will be rejected by the provider.",
+		"required": "This model always reasons; only the level can be changed.",
+		"tooltipStatus": "Reasoning: {{effort}}",
+		"tooltipOff": "Reasoning is off",
+		"toggleAriaLabel": "Toggle reasoning",
+		"cannotDisable": "Your endpoint's template keeps thinking on by default, so it can't be switched off from here."
 	},
 	"followUpSuggest": {
 		"copyToInput": "Copy to input (same as shift + click)",

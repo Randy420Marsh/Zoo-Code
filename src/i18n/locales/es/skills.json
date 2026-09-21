@@ -1,5 +1,6 @@
 {
 	"errors": {
+		"builtin_not_writable": "La habilidad \"{{name}}\" viene incluida con Zoo Code y no se puede modificar. Crea una habilidad con el mismo nombre para sustituirla.",
 		"name_length": "El nombre de la habilidad debe tener entre 1 y {{maxLength}} caracteres (se recibieron {{length}})",
 		"name_format": "El nombre de la habilidad solo puede contener letras minúsculas, números y guiones (sin guiones al inicio o al final, sin guiones consecutivos)",
 		"description_length": "La descripción de la habilidad debe tener entre 1 y 1024 caracteres (se recibieron {{length}})",

@@ -315,7 +315,15 @@
 	},
 	"reasoning": {
 		"thinking": "Đang suy nghĩ",
-		"seconds": "{{count}} giây"
+		"seconds": "{{count}} giây",
+		"off": "Tắt suy luận",
+		"title": "Suy luận",
+		"description": "Mức suy luận được gửi kèm mỗi yêu cầu. Mức mà endpoint của bạn không chấp nhận sẽ bị nhà cung cấp từ chối.",
+		"required": "Mô hình này luôn suy luận; chỉ có thể đổi mức.",
+		"tooltipStatus": "Suy luận: {{effort}}",
+		"tooltipOff": "Suy luận đang tắt",
+		"toggleAriaLabel": "Bật/tắt suy luận",
+		"cannotDisable": "Mẫu của endpoint luôn bật suy luận theo mặc định, nên không thể tắt từ đây."
 	},
 	"contextManagement": {
 		"tokens": "token",

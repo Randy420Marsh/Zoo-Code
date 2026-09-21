@@ -26,19 +26,33 @@ import { SectionHeader } from "@src/components/settings/SectionHeader"
 import McpToolRow from "./McpToolRow"
 import McpResourceRow from "./McpResourceRow"
 import McpEnabledToggle from "./McpEnabledToggle"
+import McpServerCreationToggle from "./McpServerCreationToggle"
 import { McpErrorRow } from "./McpErrorRow"
 
 interface McpViewProps {
 	mcpEnabled?: boolean
 	setMcpEnabled?: (value: boolean) => void
+	enableMcpServerCreation?: boolean
+	setEnableMcpServerCreation?: (value: boolean) => void
 }
 
-const McpView = ({ mcpEnabled: propsMcpEnabled, setMcpEnabled }: McpViewProps = {}) => {
-	const { mcpServers: servers, alwaysAllowMcp, mcpEnabled: contextMcpEnabled } = useExtensionState()
+const McpView = ({
+	mcpEnabled: propsMcpEnabled,
+	setMcpEnabled,
+	enableMcpServerCreation: propsEnableMcpServerCreation,
+	setEnableMcpServerCreation,
+}: McpViewProps = {}) => {
+	const {
+		mcpServers: servers,
+		alwaysAllowMcp,
+		mcpEnabled: contextMcpEnabled,
+		enableMcpServerCreation: contextEnableMcpServerCreation,
+	} = useExtensionState()
 
 	// When rendered inside SettingsView the value is buffered in `cachedState` and
 	// only persisted on Save. Fall back to live extension state when used uncontrolled.
 	const mcpEnabled = propsMcpEnabled ?? contextMcpEnabled
+	const enableMcpServerCreation = propsEnableMcpServerCreation ?? contextEnableMcpServerCreation
 
 	const { t } = useAppTranslation()
 	const { isOverThreshold, title, message } = useTooManyTools()
@@ -68,6 +82,12 @@ const McpView = ({ mcpEnabled: propsMcpEnabled, setMcpEnabled }: McpViewProps = 
 
 				{mcpEnabled && (
 					<>
+						{/* Server creation only makes sense while MCP itself is on. */}
+						<McpServerCreationToggle
+							enableMcpServerCreation={enableMcpServerCreation}
+							setEnableMcpServerCreation={setEnableMcpServerCreation}
+						/>
+
 						{/* Too Many Tools Warning */}
 						{isOverThreshold && (
 							<div style={{ marginBottom: 15 }}>

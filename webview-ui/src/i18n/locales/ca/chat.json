@@ -314,7 +314,15 @@
 	},
 	"reasoning": {
 		"thinking": "Pensant",
-		"seconds": "{{count}}s"
+		"seconds": "{{count}}s",
+		"off": "Raonament desactivat",
+		"title": "Raonament",
+		"description": "Nivell de raonament que s'envia a cada sol·licitud. El proveïdor rebutjarà un nivell que el vostre punt final no accepti.",
+		"required": "Aquest model sempre raona; només se'n pot canviar el nivell.",
+		"tooltipStatus": "Raonament: {{effort}}",
+		"tooltipOff": "El raonament està desactivat",
+		"toggleAriaLabel": "Activa o desactiva el raonament",
+		"cannotDisable": "La plantilla del vostre punt final manté el raonament activat per defecte, així que no es pot desactivar des d'aquí."
 	},
 	"contextManagement": {
 		"tokens": "tokens",

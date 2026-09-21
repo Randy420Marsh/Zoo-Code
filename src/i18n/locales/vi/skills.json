@@ -1,5 +1,6 @@
 {
 	"errors": {
+		"builtin_not_writable": "Kỹ năng \"{{name}}\" đi kèm với Zoo Code và không thể thay đổi. Hãy tạo một kỹ năng cùng tên để ghi đè nó.",
 		"name_length": "Tên kỹ năng phải từ 1-{{maxLength}} ký tự (nhận được {{length}})",
 		"name_format": "Tên kỹ năng chỉ có thể chứa chữ cái thường, số và dấu gạch ngang (không có dấu gạch ngang đầu hoặc cuối, không có dấu gạch ngang liên tiếp)",
 		"description_length": "Mô tả kỹ năng phải từ 1-1024 ký tự (nhận được {{length}})",

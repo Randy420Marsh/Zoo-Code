@@ -315,7 +315,15 @@
 	},
 	"reasoning": {
 		"thinking": "Düşünüyor",
-		"seconds": "{{count}}sn"
+		"seconds": "{{count}}sn",
+		"off": "Akıl yürütme kapalı",
+		"title": "Akıl yürütme",
+		"description": "Her istekle gönderilen akıl yürütme düzeyi. Uç noktanızın kabul etmediği bir düzey sağlayıcı tarafından reddedilir.",
+		"required": "Bu model her zaman akıl yürütür; yalnızca düzey değiştirilebilir.",
+		"tooltipStatus": "Akıl yürütme: {{effort}}",
+		"tooltipOff": "Akıl yürütme kapalı",
+		"toggleAriaLabel": "Akıl yürütmeyi aç/kapat",
+		"cannotDisable": "Uç noktanızın şablonu akıl yürütmeyi varsayılan olarak açık tutar, bu yüzden buradan kapatılamaz."
 	},
 	"contextManagement": {
 		"tokens": "token",

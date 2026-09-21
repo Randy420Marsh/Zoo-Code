@@ -314,7 +314,15 @@
 	},
 	"reasoning": {
 		"thinking": "생각 중",
-		"seconds": "{{count}}초"
+		"seconds": "{{count}}초",
+		"off": "추론 끄기",
+		"title": "추론",
+		"description": "요청마다 전송되는 추론 수준입니다. 엔드포인트가 지원하지 않는 수준은 공급자가 거부합니다.",
+		"required": "이 모델은 항상 추론합니다. 수준만 변경할 수 있습니다.",
+		"tooltipStatus": "추론: {{effort}}",
+		"tooltipOff": "추론이 꺼져 있습니다",
+		"toggleAriaLabel": "추론 전환",
+		"cannotDisable": "엔드포인트의 템플릿이 기본적으로 추론을 유지하므로 여기서는 끌 수 없습니다."
 	},
 	"contextManagement": {
 		"tokens": "토큰",

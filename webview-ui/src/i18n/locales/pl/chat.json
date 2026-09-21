@@ -314,7 +314,15 @@
 	},
 	"reasoning": {
 		"thinking": "Myślenie",
-		"seconds": "{{count}} s"
+		"seconds": "{{count}} s",
+		"off": "Rozumowanie wyłączone",
+		"title": "Rozumowanie",
+		"description": "Poziom rozumowania wysyłany z każdym żądaniem. Poziom, którego nie akceptuje Twój endpoint, zostanie odrzucony przez dostawcę.",
+		"required": "Ten model zawsze rozumuje; można zmienić tylko poziom.",
+		"tooltipStatus": "Rozumowanie: {{effort}}",
+		"tooltipOff": "Rozumowanie jest wyłączone",
+		"toggleAriaLabel": "Przełącz rozumowanie",
+		"cannotDisable": "Szablon Twojego endpointu domyślnie pozostawia rozumowanie włączone, więc nie da się go tu wyłączyć."
 	},
 	"contextManagement": {
 		"tokens": "tokeny",

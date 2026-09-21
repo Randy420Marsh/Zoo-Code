@@ -28,6 +28,7 @@ import Thumbnails from "../common/Thumbnails"
 import { ModeSelector } from "./ModeSelector"
 import { ApiConfigSelector } from "./ApiConfigSelector"
 import { AutoApproveDropdown } from "./AutoApproveDropdown"
+import { ReasoningSelector } from "./ReasoningSelector"
 import { MAX_IMAGES_PER_MESSAGE } from "./constants"
 import ContextMenu from "./ContextMenu"
 import { IndexingStatusBadge } from "./IndexingStatusBadge"
@@ -1320,6 +1321,7 @@ export const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							onToggleLockApiConfig={handleToggleLockApiConfig}
 						/>
 						<AutoApproveDropdown triggerClassName="min-w-[28px] text-ellipsis overflow-hidden flex-shrink min-[310px]:overflow-visible min-[310px]:flex-shrink-0" />
+						<ReasoningSelector triggerClassName="min-w-[28px] text-ellipsis overflow-hidden flex-shrink min-[310px]:overflow-visible min-[310px]:flex-shrink-0" />
 					</div>
 					<div className={cn("flex flex-shrink-0 items-center gap-0.5 h-5 leading-none pr-2")}>
 						{isTtsPlaying && (

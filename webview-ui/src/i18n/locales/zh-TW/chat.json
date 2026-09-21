@@ -379,7 +379,15 @@
 	},
 	"reasoning": {
 		"thinking": "思考中",
-		"seconds": "{{count}} 秒"
+		"seconds": "{{count}} 秒",
+		"off": "推理已關閉",
+		"title": "推理",
+		"description": "每次請求傳送的推理等級。端點不接受的等級會被供應商拒絕。",
+		"required": "此模型一律會推理，只能變更等級。",
+		"tooltipStatus": "推理：{{effort}}",
+		"tooltipOff": "推理已關閉",
+		"toggleAriaLabel": "切換推理",
+		"cannotDisable": "你的端點範本預設會保持推理開啟，因此無法從這裡關閉。"
 	},
 	"followUpSuggest": {
 		"copyToInput": "複製到輸入欄（或按住 Shift 並點選）",

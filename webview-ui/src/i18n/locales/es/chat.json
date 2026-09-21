@@ -314,7 +314,15 @@
 	},
 	"reasoning": {
 		"thinking": "Pensando",
-		"seconds": "{{count}}s"
+		"seconds": "{{count}}s",
+		"off": "Razonamiento desactivado",
+		"title": "Razonamiento",
+		"description": "Nivel de razonamiento que se envía en cada solicitud. El proveedor rechazará un nivel que tu endpoint no acepte.",
+		"required": "Este modelo siempre razona; solo se puede cambiar el nivel.",
+		"tooltipStatus": "Razonamiento: {{effort}}",
+		"tooltipOff": "El razonamiento está desactivado",
+		"toggleAriaLabel": "Activar o desactivar el razonamiento",
+		"cannotDisable": "La plantilla de tu endpoint mantiene el razonamiento activado por defecto, así que no se puede desactivar desde aquí."
 	},
 	"contextManagement": {
 		"tokens": "tokens",

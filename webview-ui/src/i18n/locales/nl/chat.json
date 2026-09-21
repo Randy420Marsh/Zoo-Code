@@ -330,7 +330,15 @@
 	},
 	"reasoning": {
 		"thinking": "Denkt na",
-		"seconds": "{{count}}s"
+		"seconds": "{{count}}s",
+		"off": "Redeneren uit",
+		"title": "Redeneren",
+		"description": "Redeneerniveau dat bij elk verzoek wordt meegestuurd. Een niveau dat je endpoint niet accepteert, wordt door de provider geweigerd.",
+		"required": "Dit model redeneert altijd; alleen het niveau is aanpasbaar.",
+		"tooltipStatus": "Redeneren: {{effort}}",
+		"tooltipOff": "Redeneren staat uit",
+		"toggleAriaLabel": "Redeneren in-/uitschakelen",
+		"cannotDisable": "De template van je endpoint houdt redeneren standaard aan, dus het kan hier niet worden uitgezet."
 	},
 	"contextManagement": {
 		"tokens": "tokens",

@@ -314,7 +314,15 @@
 	},
 	"reasoning": {
 		"thinking": "Réflexion",
-		"seconds": "{{count}}s"
+		"seconds": "{{count}}s",
+		"off": "Raisonnement désactivé",
+		"title": "Raisonnement",
+		"description": "Niveau de raisonnement envoyé à chaque requête. Un niveau que votre point de terminaison n'accepte pas sera rejeté par le fournisseur.",
+		"required": "Ce modèle raisonne toujours ; seul le niveau peut être modifié.",
+		"tooltipStatus": "Raisonnement : {{effort}}",
+		"tooltipOff": "Le raisonnement est désactivé",
+		"toggleAriaLabel": "Activer ou désactiver le raisonnement",
+		"cannotDisable": "Le modèle de votre point de terminaison garde le raisonnement activé par défaut ; il ne peut pas être désactivé ici."
 	},
 	"contextManagement": {
 		"tokens": "tokens",

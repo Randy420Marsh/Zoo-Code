@@ -1,5 +1,6 @@
 {
 	"errors": {
+		"builtin_not_writable": "技能 \"{{name}}\" 隨 Zoo Code 一併提供，無法修改。可建立同名技能來覆寫它。",
 		"name_length": "技能名稱必須為 1-{{maxLength}} 個字元（收到 {{length}} 個）",
 		"name_format": "技能名稱只能包含小寫字母、數字和連字號（不能有前導或尾隨連字號，不能有連續連字號）",
 		"description_length": "技能描述必須為 1-1024 個字元（收到 {{length}} 個）",

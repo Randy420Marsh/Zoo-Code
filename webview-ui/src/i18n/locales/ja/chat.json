@@ -314,7 +314,15 @@
 	},
 	"reasoning": {
 		"thinking": "考え中",
-		"seconds": "{{count}}秒"
+		"seconds": "{{count}}秒",
+		"off": "推論オフ",
+		"title": "推論",
+		"description": "リクエストごとに送信する推論レベル。エンドポイントが受け付けないレベルはプロバイダー側で拒否されます。",
+		"required": "このモデルは常に推論します。変更できるのはレベルだけです。",
+		"tooltipStatus": "推論: {{effort}}",
+		"tooltipOff": "推論はオフです",
+		"toggleAriaLabel": "推論を切り替え",
+		"cannotDisable": "エンドポイントのテンプレートは既定で推論を続けるため、ここからはオフにできません。"
 	},
 	"contextManagement": {
 		"tokens": "トークン",

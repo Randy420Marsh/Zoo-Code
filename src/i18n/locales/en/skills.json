@@ -11,6 +11,7 @@
 		"missing_update_modes_fields": "Missing required fields: skillName or source",
 		"manager_unavailable": "Skills manager not available",
 		"missing_delete_fields": "Missing required fields: skillName or source",
-		"skill_not_found": "Skill \"{{name}}\" not found"
+		"skill_not_found": "Skill \"{{name}}\" not found",
+		"builtin_not_writable": "Skill \"{{name}}\" ships with Zoo Code and cannot be changed. Create a skill with the same name to override it."
 	}
 }

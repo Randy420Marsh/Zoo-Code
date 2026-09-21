@@ -26,6 +26,7 @@ import {
 	retiredProviderIdentifiers,
 	LmStudioModelsMessageType,
 	OllamaModelsMessageType,
+	OpenAiCompatibleServerInfoMessageType,
 	OpenAiModelsMessageType,
 	RouterModelsMessageType,
 	VsCodeLmModelsMessageType,
@@ -78,6 +79,7 @@ import { playTts, setTtsEnabled, setTtsSpeed, stopTts } from "../../utils/tts"
 import { searchCommits } from "../../utils/git"
 import { exportSettings, importSettingsWithFeedback } from "../config/importExport"
 import { getOpenAiModels } from "../../api/providers/openai"
+import { getOpenAiCompatibleServerInfo } from "../../api/providers/fetchers/openai-compatible-props"
 import { getVsCodeLmModels } from "../../api/providers/vscode-lm"
 import { openMention } from "../mentions"
 import { resolveImageMentions } from "../mentions/resolveImageMentions"
@@ -688,6 +690,10 @@ export const webviewMessageHandler = async (
 
 			provider.isViewLaunched = true
 			break
+		case "webviewHeartbeat":
+			// Timestamp-only update for the dead-renderer watchdog; no other side effects.
+			provider.updateWebviewHeartbeat()
+			break
 		case "newTask":
 			// Initializing new instance of Cline will make sure that any
 			// agentically running promises in old instance don't affect our new
@@ -744,6 +750,8 @@ export const webviewMessageHandler = async (
 						)
 					}
 				}
+
+				let rediscoverSkills = false
 
 				for (const [key, value] of Object.entries(message.updatedSettings)) {
 					let newValue = value
@@ -840,6 +848,15 @@ export const webviewMessageHandler = async (
 						if (mcpHub) {
 							await mcpHub.handleMcpEnabledChange(newValue as boolean)
 						}
+
+						// The built-in create-mcp-server skill is withdrawn when MCP is
+						// off entirely, so the skill list has to be rebuilt here too.
+						rediscoverSkills = true
+					} else if (key === "enableMcpServerCreation") {
+						newValue = value ?? true
+						// The built-in skill is gated at discovery time, so the skill list
+						// has to be rebuilt - but only once the new value is persisted below.
+						rediscoverSkills = true
 					} else if (key === "experiments") {
 						if (!value) {
 							continue
@@ -856,6 +873,10 @@ export const webviewMessageHandler = async (
 					}
 
 					await provider.contextProxy.setValue(key as keyof RooCodeSettings, newValue)
+				}
+
+				if (rediscoverSkills) {
+					await provider.getSkillsManager()?.discoverSkills()
 				}
 
 				await provider.postStateToWebview()
@@ -1479,6 +1500,24 @@ export const webviewMessageHandler = async (
 			}
 
 			break
+		case OpenAiCompatibleServerInfoMessageType.requestOpenAiCompatibleServerInfo: {
+			// Prefer the values from the settings form so a URL the user is still editing
+			// is probed, falling back to the saved profile for callers outside settings.
+			const { apiConfiguration: openAiCompatibleConfig } = await provider.getState()
+			const baseUrl = message?.values?.baseUrl ?? openAiCompatibleConfig.openAiBaseUrl
+			const apiKey = message?.values?.apiKey ?? openAiCompatibleConfig.openAiApiKey
+			const openAiHeaders = message?.values?.openAiHeaders ?? openAiCompatibleConfig.openAiHeaders
+
+			const openAiCompatibleServerInfo = await getOpenAiCompatibleServerInfo(baseUrl, apiKey, openAiHeaders)
+
+			// Always answer so the webview can leave its loading state, even when the
+			// endpoint has no `/props` to report.
+			await provider.postMessageToWebview({
+				type: OpenAiCompatibleServerInfoMessageType.openAiCompatibleServerInfo,
+				openAiCompatibleServerInfo,
+			})
+			break
+		}
 		case VsCodeLmModelsMessageType.requestVsCodeLmModels:
 			const vsCodeLmModels = await getVsCodeLmModels()
 			// TODO: Cache like we do for OpenRouter, etc?
@@ -2599,7 +2638,9 @@ export const webviewMessageHandler = async (
 					// Import the mode with the specified source level
 					const result = await provider.customModesManager.importModeWithRules(
 						yamlContent,
-						message.source || "project", // Default to project if not specified
+						// Modes import into a writable source only; "built-in" is a
+						// skills-only value and never reaches this message.
+						message.source && message.source !== "built-in" ? message.source : "project",
 					)
 
 					if (result.success) {

@@ -314,7 +314,15 @@
 	},
 	"reasoning": {
 		"thinking": "Pensando",
-		"seconds": "{{count}}s"
+		"seconds": "{{count}}s",
+		"off": "Raciocínio desativado",
+		"title": "Raciocínio",
+		"description": "Nível de raciocínio enviado em cada requisição. Um nível que seu endpoint não aceita será rejeitado pelo provedor.",
+		"required": "Este modelo sempre raciocina; só o nível pode ser alterado.",
+		"tooltipStatus": "Raciocínio: {{effort}}",
+		"tooltipOff": "O raciocínio está desativado",
+		"toggleAriaLabel": "Alternar raciocínio",
+		"cannotDisable": "O template do seu endpoint mantém o raciocínio ligado por padrão, então não dá para desligá-lo aqui."
 	},
 	"contextManagement": {
 		"tokens": "tokens",

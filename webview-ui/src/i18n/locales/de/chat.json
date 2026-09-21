@@ -314,7 +314,15 @@
 	},
 	"reasoning": {
 		"thinking": "Denke nach",
-		"seconds": "{{count}}s"
+		"seconds": "{{count}}s",
+		"off": "Reasoning aus",
+		"title": "Reasoning",
+		"description": "Reasoning-Stufe, die mit jeder Anfrage gesendet wird. Eine Stufe, die dein Endpunkt nicht akzeptiert, wird vom Anbieter abgelehnt.",
+		"required": "Dieses Modell denkt immer nach; nur die Stufe lässt sich ändern.",
+		"tooltipStatus": "Reasoning: {{effort}}",
+		"tooltipOff": "Reasoning ist aus",
+		"toggleAriaLabel": "Reasoning umschalten",
+		"cannotDisable": "Die Vorlage deines Endpunkts denkt standardmäßig weiter, daher lässt sie sich hier nicht abschalten."
 	},
 	"contextManagement": {
 		"tokens": "Tokens",
