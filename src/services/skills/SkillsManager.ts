@@ -6,7 +6,7 @@ import matter from "gray-matter"
 import type { ClineProvider } from "../../core/webview/ClineProvider"
 import { getGlobalRooDirectory, getGlobalAgentsDirectory, getProjectAgentsDirectoryForCwd } from "../roo-config"
 import { directoryExists, fileExists } from "../roo-config"
-import { SkillMetadata, SkillContent } from "../../shared/skills"
+import { SkillMetadata, SkillContent, SkillSource } from "../../shared/skills"
 import { modes, getAllModes } from "../../shared/modes"
 import {
 	validateSkillName as validateSkillNameShared,
@@ -16,7 +16,7 @@ import {
 import { t } from "../../i18n"
 
 // Re-export for convenience
-export type { SkillMetadata, SkillContent }
+export type { SkillMetadata, SkillContent, SkillSource }
 
 export class SkillsManager {
 	private skills: Map<string, SkillMetadata> = new Map()
@@ -44,9 +44,41 @@ export class SkillsManager {
 		this.skills.clear()
 		const skillsDirs = await this.getSkillsDirectories()
 
-		for (const { dir, source, mode } of skillsDirs) {
-			await this.scanSkillsDirectory(dir, source, mode)
+		for (const { dir, source, mode, skipNames } of skillsDirs) {
+			await this.scanSkillsDirectory(dir, source, mode, skipNames)
 		}
+	}
+
+	/**
+	 * Directory holding the skills that ship with the extension.
+	 * Returns undefined when the extension path is unavailable (e.g. in tests).
+	 */
+	private getBuiltinSkillsDirectory(): string | undefined {
+		const extensionPath = this.providerRef.deref()?.contextProxy?.extensionUri?.fsPath
+		return extensionPath ? path.join(extensionPath, "assets", "skills") : undefined
+	}
+
+	/**
+	 * Built-in skills the user has switched off. Each entry maps a bundled skill to the
+	 * setting that governs it; an absent setting means the skill is on by default.
+	 */
+	private async getDisabledBuiltinSkills(): Promise<Set<string>> {
+		const disabled = new Set<string>()
+		const state = await this.providerRef.deref()?.getState()
+
+		// "Enable MCP Server Creation": off removes the authoring instructions while
+		// leaving the tools for operating connected servers alone. Turning MCP off
+		// entirely also withdraws it - there is nothing to connect a new server to,
+		// and the toggle is hidden in that state, so leaving it on would offer a
+		// skill the user can no longer see or switch off.
+		const mcpEnabled = state?.mcpEnabled ?? true
+		const serverCreationEnabled = state?.enableMcpServerCreation ?? true
+
+		if (!mcpEnabled || !serverCreationEnabled) {
+			disabled.add("create-mcp-server")
+		}
+
+		return disabled
 	}
 
 	/**
@@ -54,8 +86,16 @@ export class SkillsManager {
 	 * Handles two symlink cases:
 	 * 1. The skills directory itself is a symlink (resolved by directoryExists using realpath)
 	 * 2. Individual skill subdirectories are symlinks
+	 *
+	 * @param skipNames - Skill names to leave undiscovered, used to gate built-in skills
+	 *   behind their settings.
 	 */
-	private async scanSkillsDirectory(dirPath: string, source: "global" | "project", mode?: string): Promise<void> {
+	private async scanSkillsDirectory(
+		dirPath: string,
+		source: SkillSource,
+		mode?: string,
+		skipNames?: Set<string>,
+	): Promise<void> {
 		if (!(await directoryExists(dirPath))) {
 			return
 		}
@@ -68,6 +108,8 @@ export class SkillsManager {
 			const entries = await fs.readdir(realDirPath)
 
 			for (const entryName of entries) {
+				if (skipNames?.has(entryName)) continue
+
 				const entryPath = path.join(realDirPath, entryName)
 
 				// Check if this entry is a directory (follows symlinks automatically)
@@ -85,13 +127,13 @@ export class SkillsManager {
 	/**
 	 * Load skill metadata from a skill directory.
 	 * @param skillDir - The resolved path to the skill directory (target of symlink if symlinked)
-	 * @param source - Whether this is a global or project skill
+	 * @param source - Whether this is a built-in, global or project skill
 	 * @param mode - The mode this skill is specific to (undefined for generic skills)
 	 * @param skillName - The skill name (from symlink name if symlinked, otherwise from directory name)
 	 */
 	private async loadSkillMetadata(
 		skillDir: string,
-		source: "global" | "project",
+		source: SkillSource,
 		mode?: string,
 		skillName?: string,
 	): Promise<void> {
@@ -224,13 +266,15 @@ export class SkillsManager {
 
 	/**
 	 * Determine if newSkill should override existingSkill based on priority rules.
-	 * Priority: project > global, mode-specific > generic
+	 * Priority: project > global > built-in, mode-specific > generic
 	 */
 	private shouldOverrideSkill(existing: SkillMetadata, newSkill: SkillMetadata): boolean {
-		// Define source priority: project > global
+		// Define source priority: project > global > built-in. Built-in skills rank
+		// lowest so a user's own skill of the same name always replaces the bundled one.
 		const sourcePriority: Record<string, number> = {
-			project: 2,
-			global: 1,
+			project: 3,
+			global: 2,
+			"built-in": 1,
 		}
 
 		const existingPriority = sourcePriority[existing.source] ?? 0
@@ -293,7 +337,7 @@ export class SkillsManager {
 	/**
 	 * Get a skill by name, source, and optionally mode
 	 */
-	getSkill(name: string, source: "global" | "project", mode?: string): SkillMetadata | undefined {
+	getSkill(name: string, source: SkillSource, mode?: string): SkillMetadata | undefined {
 		const skillKey = this.getSkillKey(name, source, mode)
 		return this.skills.get(skillKey)
 	}
@@ -302,7 +346,7 @@ export class SkillsManager {
 	 * Find a skill by name and source (regardless of mode).
 	 * Useful for opening/editing skills where the exact mode key may vary.
 	 */
-	findSkillByNameAndSource(name: string, source: "global" | "project"): SkillMetadata | undefined {
+	findSkillByNameAndSource(name: string, source: SkillSource): SkillMetadata | undefined {
 		for (const skill of this.skills.values()) {
 			if (skill.name === name && skill.source === source) {
 				return skill
@@ -567,11 +611,20 @@ Add your skill instructions here.
 	private async getSkillsDirectories(): Promise<
 		Array<{
 			dir: string
-			source: "global" | "project"
+			source: SkillSource
 			mode?: string
+			skipNames?: Set<string>
 		}>
 	> {
-		const dirs: Array<{ dir: string; source: "global" | "project"; mode?: string }> = []
+		const dirs: Array<{ dir: string; source: SkillSource; mode?: string; skipNames?: Set<string> }> = []
+
+		// Skills bundled with the extension. Listed first so they rank lowest and a
+		// user skill of the same name replaces the bundled one.
+		const builtinDir = this.getBuiltinSkillsDirectory()
+		if (builtinDir) {
+			dirs.push({ dir: builtinDir, source: "built-in", skipNames: await this.getDisabledBuiltinSkills() })
+		}
+
 		const globalRooDir = getGlobalRooDirectory()
 		const globalAgentsDir = getGlobalAgentsDirectory()
 		const provider = this.providerRef.deref()

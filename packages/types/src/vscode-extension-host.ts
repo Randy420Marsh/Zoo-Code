@@ -15,7 +15,11 @@ import type { McpServer } from "./mcp.js"
 import { RouterModelsMessageType, type ModelRecord, type RouterModels } from "./model.js"
 import { LmStudioModelsMessageType } from "./providers/lm-studio.js"
 import { OllamaModelsMessageType } from "./providers/ollama.js"
-import { OpenAiModelsMessageType } from "./providers/openai.js"
+import {
+	OpenAiCompatibleServerInfoMessageType,
+	OpenAiModelsMessageType,
+	type OpenAiCompatibleServerInfo,
+} from "./providers/openai.js"
 import { VsCodeLmModelsMessageType } from "./providers/vscode-llm.js"
 import type { OpenAiCodexRateLimitInfo } from "./providers/openai-codex-rate-limits.js"
 import type { SkillMetadata } from "./skills.js"
@@ -45,6 +49,7 @@ export interface ExtensionMessage {
 		| typeof RouterModelsMessageType.routerModels
 		| "zooGatewayCredentialsReady"
 		| typeof OpenAiModelsMessageType.openAiModels
+		| typeof OpenAiCompatibleServerInfoMessageType.openAiCompatibleServerInfo
 		| typeof OllamaModelsMessageType.ollamaModels
 		| typeof LmStudioModelsMessageType.lmStudioModels
 		| typeof VsCodeLmModelsMessageType.vsCodeLmModels
@@ -141,6 +146,7 @@ export interface ExtensionMessage {
 	clineMessage?: ClineMessage
 	routerModels?: RouterModels
 	openAiModels?: string[]
+	openAiCompatibleServerInfo?: OpenAiCompatibleServerInfo
 	ollamaModels?: ModelRecord
 	lmStudioModels?: ModelRecord
 	vsCodeLmModels?: { vendor?: string; family?: string; version?: string; id?: string }[]
@@ -359,6 +365,7 @@ export type ExtensionState = Pick<
 	experiments: Experiments // Map of experiment IDs to their enabled state
 
 	mcpEnabled: boolean
+	enableMcpServerCreation: boolean
 
 	mode: string
 	customModes: ModeConfig[]
@@ -472,6 +479,7 @@ export interface WebviewMessage {
 		| "getListApiConfiguration"
 		| "customInstructions"
 		| "webviewDidLaunch"
+		| "webviewHeartbeat"
 		| "newTask"
 		| "askResponse"
 		| "terminalOperation"
@@ -490,6 +498,7 @@ export interface WebviewMessage {
 		| typeof RouterModelsMessageType.flushRouterModels
 		| typeof RouterModelsMessageType.requestRouterModels
 		| typeof OpenAiModelsMessageType.requestOpenAiModels
+		| typeof OpenAiCompatibleServerInfoMessageType.requestOpenAiCompatibleServerInfo
 		| typeof OllamaModelsMessageType.requestOllamaModels
 		| typeof LmStudioModelsMessageType.requestLmStudioModels
 		| "requestRooModels"
@@ -680,7 +689,9 @@ export interface WebviewMessage {
 	modeConfig?: ModeConfig
 	timeout?: number
 	payload?: WebViewMessagePayload
-	source?: "global" | "project"
+	// "built-in" only ever applies to skills that ship with the extension, and only
+	// for reads such as openSkillFile - the host rejects it for create/move/delete.
+	source?: "built-in" | "global" | "project"
 	skillName?: string // For skill operations (createSkill, deleteSkill, moveSkill, openSkillFile)
 	/** @deprecated Use skillModeSlugs instead */
 	skillMode?: string // For skill operations (current mode restriction)
@@ -696,6 +707,7 @@ export interface WebviewMessage {
 	ids?: string[]
 	terminalOperation?: "continue" | "abort"
 	messageTs?: number
+	timestamp?: number // For webviewHeartbeat
 	restoreCheckpoint?: boolean
 	historyPreviewCollapsed?: boolean
 	filters?: { type?: string; search?: string; tags?: string[] }

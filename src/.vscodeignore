@@ -32,3 +32,6 @@
 !assets/icons/**
 !assets/images/**
 !assets/marketplace/**
+
+# Include the skills that ship with the extension
+!assets/skills/**

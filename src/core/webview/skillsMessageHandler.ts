@@ -7,6 +7,20 @@ import { openFile } from "../../integrations/misc/open-file"
 import { t } from "../../i18n"
 
 type SkillSource = SkillMetadata["source"]
+type WritableSkillSource = Exclude<SkillSource, "built-in">
+
+/**
+ * Built-in skills live inside the extension directory, so create/move/delete/update
+ * cannot touch them. Narrows a source that arrived from the webview, rejecting
+ * "built-in" rather than letting it reach a write that would fail on the filesystem.
+ */
+function assertWritableSource(source: SkillSource, skillName: string): WritableSkillSource {
+	if (source === "built-in") {
+		throw new Error(t("skills:errors.builtin_not_writable", { name: skillName }))
+	}
+
+	return source
+}
 
 /**
  * Handles the requestSkills message - returns all skills metadata
@@ -52,7 +66,12 @@ export async function handleCreateSkill(
 			throw new Error(t("skills:errors.manager_unavailable"))
 		}
 
-		const createdPath = await skillsManager.createSkill(skillName, source, skillDescription, modeSlugs)
+		const createdPath = await skillsManager.createSkill(
+			skillName,
+			assertWritableSource(source, skillName),
+			skillDescription,
+			modeSlugs,
+		)
 
 		// Open the created file in the editor
 		await openFile(createdPath)
@@ -91,7 +110,7 @@ export async function handleDeleteSkill(
 			throw new Error(t("skills:errors.manager_unavailable"))
 		}
 
-		await skillsManager.deleteSkill(skillName, source, skillMode)
+		await skillsManager.deleteSkill(skillName, assertWritableSource(source, skillName), skillMode)
 
 		// Send updated skills list
 		const skills = skillsManager.getSkillsMetadata()
@@ -127,7 +146,7 @@ export async function handleMoveSkill(
 			throw new Error(t("skills:errors.manager_unavailable"))
 		}
 
-		await skillsManager.moveSkill(skillName, source, currentMode, newMode)
+		await skillsManager.moveSkill(skillName, assertWritableSource(source, skillName), currentMode, newMode)
 
 		// Send updated skills list
 		const skills = skillsManager.getSkillsMetadata()
@@ -162,7 +181,7 @@ export async function handleUpdateSkillModes(
 			throw new Error(t("skills:errors.manager_unavailable"))
 		}
 
-		await skillsManager.updateSkillModes(skillName, source, newModeSlugs)
+		await skillsManager.updateSkillModes(skillName, assertWritableSource(source, skillName), newModeSlugs)
 
 		// Send updated skills list
 		const skills = skillsManager.getSkillsMetadata()

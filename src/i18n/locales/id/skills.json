@@ -1,5 +1,6 @@
 {
 	"errors": {
+		"builtin_not_writable": "Skill \"{{name}}\" bawaan Zoo Code dan tidak dapat diubah. Buat skill dengan nama yang sama untuk menggantikannya.",
 		"name_length": "Nama skill harus 1-{{maxLength}} karakter (diterima {{length}})",
 		"name_format": "Nama skill hanya boleh berisi huruf kecil, angka, dan tanda hubung (tanpa tanda hubung di awal atau akhir, tanpa tanda hubung berturut-turut)",
 		"description_length": "Deskripsi skill harus 1-1024 karakter (diterima {{length}})",

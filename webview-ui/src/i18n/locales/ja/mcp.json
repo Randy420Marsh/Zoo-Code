@@ -8,6 +8,10 @@
 		"title": "MCPサーバーを有効化",
 		"description": "これをONにすると、Rooが接続されたMCPサーバーのツールを使えるようになるよ。Rooの機能が増える！追加ツールを使わないなら、APIトークンのコストを抑えるためにOFFにしてね。"
 	},
+	"enableServerCreation": {
+		"title": "MCPサーバーの作成を有効化",
+		"description": "有効にすると、「...に新しいツールを追加して」のような指示で、Zooが新しいMCPサーバーの作成を手伝えるようになるよ。MCPサーバーを作る必要がないなら、Zooのトークン使用量を減らすためにオフにしてね。"
+	},
 	"editGlobalMCP": "グローバルMCPを編集",
 	"editProjectMCP": "プロジェクトMCPを編集",
 	"learnMoreEditingSettings": "MCP設定ファイルの編集方法を詳しく見る",

@@ -1,5 +1,6 @@
 {
 	"errors": {
+		"builtin_not_writable": "Der Skill \"{{name}}\" ist Teil von Zoo Code und kann nicht geändert werden. Erstelle einen Skill mit demselben Namen, um ihn zu überschreiben.",
 		"name_length": "Skill-Name muss 1-{{maxLength}} Zeichen lang sein (erhalten: {{length}})",
 		"name_format": "Skill-Name darf nur Kleinbuchstaben, Zahlen und Bindestriche enthalten (keine führenden oder nachgestellten Bindestriche, keine aufeinanderfolgenden Bindestriche)",
 		"description_length": "Skill-Beschreibung muss 1-1024 Zeichen lang sein (erhalten: {{length}})",

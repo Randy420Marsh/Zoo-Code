@@ -19,6 +19,8 @@ import {
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { Button, StandardTooltip } from "@src/components/ui"
 import { formatOpenAiExtraBodyValidationError } from "@src/utils/validate"
+import { openAiCompatibleReasoningEfforts } from "@src/utils/reasoning"
+import { useOpenAiCompatibleServerInfo } from "@src/components/ui/hooks/useOpenAiCompatibleServerInfo"
 
 import { convertHeadersToObject } from "../utils/headers"
 import { inputEventTransform, noTransform } from "../transforms"
@@ -47,6 +49,13 @@ export const OpenAICompatible = ({
 }: OpenAICompatibleProps) => {
 	const { t } = useAppTranslation()
 	const isAzureOpenAi = isAzureOpenAiBaseUrl(apiConfiguration?.openAiBaseUrl, apiConfiguration?.openAiUseAzure)
+
+	// A llama.cpp-style endpoint describes its chat template on `/props`; anything else
+	// reports nothing and the default effort ladder is used.
+	const { data: serverInfo } = useOpenAiCompatibleServerInfo(
+		apiConfiguration?.openAiBaseUrl,
+		apiConfiguration?.openAiApiKey,
+	)
 
 	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
 
@@ -319,7 +328,11 @@ export const OpenAICompatible = ({
 						}}
 						modelInfo={{
 							...(apiConfiguration.openAiCustomModelInfo || openAiModelInfoSaneDefaults),
-							supportsReasoningEffort: ["low", "medium", "high", "xhigh", "max"],
+							// Levels read off the endpoint's own chat template when it exposes one,
+							// so a level the server would reject never reaches the dropdown.
+							supportsReasoningEffort: serverInfo?.reasoningEfforts?.length
+								? [...serverInfo.reasoningEfforts]
+								: [...openAiCompatibleReasoningEfforts],
 						}}
 					/>
 				)}

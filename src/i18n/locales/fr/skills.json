@@ -1,5 +1,6 @@
 {
 	"errors": {
+		"builtin_not_writable": "La compétence \"{{name}}\" est fournie avec Zoo Code et ne peut pas être modifiée. Crée une compétence portant le même nom pour la remplacer.",
 		"name_length": "Le nom de la compétence doit contenir entre 1 et {{maxLength}} caractères ({{length}} reçu)",
 		"name_format": "Le nom de la compétence ne peut contenir que des lettres minuscules, des chiffres et des traits d'union (pas de trait d'union initial ou final, pas de traits d'union consécutifs)",
 		"description_length": "La description de la compétence doit contenir entre 1 et 1024 caractères ({{length}} reçu)",

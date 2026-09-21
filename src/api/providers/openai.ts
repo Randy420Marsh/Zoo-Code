@@ -4,6 +4,7 @@ import axios from "axios"
 
 import {
 	type ModelInfo,
+	type ReasoningEffortExtended,
 	azureOpenAiDefaultApiVersion,
 	isAzureAiInferenceBaseUrl,
 	isAzureOpenAiBaseUrl,
@@ -11,6 +12,7 @@ import {
 	DEEP_SEEK_DEFAULT_TEMPERATURE,
 	OPENAI_AZURE_AI_INFERENCE_PATH,
 	parseOpenAiExtraBody,
+	resolveReasoningEffortForServer,
 } from "@roo-code/types"
 
 import type { ApiHandlerOptions } from "../../shared/api"
@@ -21,12 +23,17 @@ import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToR1Format } from "../transform/r1-format"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { getModelParams } from "../transform/model-params"
+import type { OpenAiReasoningParams } from "../transform/reasoning"
 
 import { DEFAULT_HEADERS, NOT_PROVIDED } from "./constants"
 import { BaseProvider } from "./base-provider"
 import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata, CompletePromptOptions } from "../index"
 import { handleOpenAIError } from "./utils/error-handler"
+import { getOpenAiCompatibleServerInfo } from "./fetchers/openai-compatible-props"
 import { extractReasoningFromDelta } from "./utils/extract-reasoning"
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+	typeof value === "object" && value !== null && !Array.isArray(value)
 
 // TODO: Rename this to OpenAICompatibleHandler. Also, I think the
 // `OpenAINativeHandler` can subclass from this, since it's obviously
@@ -169,7 +176,7 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 				messages: convertedMessages,
 				stream: true as const,
 				...(isGrokXAI ? {} : { stream_options: { include_usage: true } }),
-				...(reasoning && reasoning),
+				...(await this.getReasoningParams(reasoning)),
 				tools: this.convertToolsForOpenAI(metadata?.tools),
 				tool_choice: metadata?.tool_choice,
 				parallel_tool_calls: metadata?.parallelToolCalls ?? true,
@@ -236,7 +243,7 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 				messages: deepseekReasoner
 					? convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 					: [systemMessage, ...convertToOpenAiMessages(messages)],
-				...reasoning,
+				...(await this.getReasoningParams(reasoning)),
 				// Tools are always present (minimum ALWAYS_AVAILABLE_TOOLS)
 				tools: this.convertToolsForOpenAI(metadata?.tools),
 				tool_choice: metadata?.tool_choice,
@@ -298,8 +305,9 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 			format: "openai",
 			modelId: id,
 			model: info,
-			// OpenAI Compatible edits effort in custom model info. The shared top-level
-			// setting may be left over from another provider and must not override it.
+			// The level for this provider lives on the custom model info - that is what both
+			// the settings view and the chat selector write. A profile-level level left over
+			// from another provider would otherwise shadow it and reach the endpoint instead.
 			settings: { ...this.options, reasoningEffort: info.reasoningEffort },
 			defaultTemperature: 0,
 		})
@@ -556,8 +564,58 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 		}
 	}
 
+	/**
+	 * The reasoning fields of the request body, checked against the endpoint's own template.
+	 *
+	 * Custom endpoints don't advertise their effort ladder through the OpenAI API, but a
+	 * llama.cpp-style server describes its chat template on `/props`, and it raises on a
+	 * level that template doesn't know instead of ignoring it. The lookup is cached
+	 * (negative answers too), so an endpoint without `/props` is probed once.
+	 *
+	 * Switching reasoning off goes through the same description: omitting
+	 * `reasoning_effort` is not the same as asking for no reasoning, since a template
+	 * that defaults to thinking (llama.cpp's Qwen3 template defaults to `xhigh`) keeps
+	 * thinking when the field is simply absent. Only `enable_thinking` says "off" out loud.
+	 */
+	private async getReasoningParams(reasoning: unknown): Promise<Record<string, unknown>> {
+		const requested = (reasoning as OpenAiReasoningParams | undefined)?.reasoning_effort
+
+		// Nothing to send and nothing to switch off: leave the endpoint undisturbed.
+		if (!requested && this.options.enableReasoningEffort !== false) {
+			return {}
+		}
+
+		const serverInfo = await getOpenAiCompatibleServerInfo(
+			this.options.openAiBaseUrl,
+			this.options.openAiApiKey,
+			this.options.openAiHeaders,
+		)
+
+		if (this.options.enableReasoningEffort === false) {
+			return serverInfo?.supportsEnableThinking ? { chat_template_kwargs: { enable_thinking: false } } : {}
+		}
+
+		const effort = resolveReasoningEffortForServer(requested as ReasoningEffortExtended, serverInfo)
+
+		return effort ? { reasoning_effort: effort } : {}
+	}
+
 	private withExtraBody<T extends object>(requestOptions: T): T {
-		return { ...this.extraBody, ...requestOptions }
+		const merged = { ...this.extraBody, ...requestOptions }
+
+		// Both sides may carry template kwargs; merge them key by key so an explicit
+		// entry in the user's extra body still wins over anything we added.
+		const extraKwargs = this.extraBody?.["chat_template_kwargs"]
+		const ownKwargs = (requestOptions as { chat_template_kwargs?: unknown }).chat_template_kwargs
+
+		if (isPlainObject(extraKwargs) && isPlainObject(ownKwargs)) {
+			;(merged as { chat_template_kwargs?: Record<string, unknown> }).chat_template_kwargs = {
+				...ownKwargs,
+				...extraKwargs,
+			}
+		}
+
+		return merged
 	}
 }
 

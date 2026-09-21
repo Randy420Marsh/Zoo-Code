@@ -386,7 +386,15 @@
 	},
 	"reasoning": {
 		"thinking": "Berpikir",
-		"seconds": "{{count}}d"
+		"seconds": "{{count}}d",
+		"off": "Penalaran nonaktif",
+		"title": "Penalaran",
+		"description": "Tingkat penalaran yang dikirim pada setiap permintaan. Tingkat yang tidak diterima endpoint kamu akan ditolak oleh penyedia.",
+		"required": "Model ini selalu bernalar; hanya tingkatnya yang bisa diubah.",
+		"tooltipStatus": "Penalaran: {{effort}}",
+		"tooltipOff": "Penalaran nonaktif",
+		"toggleAriaLabel": "Alihkan penalaran",
+		"cannotDisable": "Template endpoint kamu tetap menyalakan penalaran secara bawaan, jadi tidak bisa dimatikan dari sini."
 	},
 	"followUpSuggest": {
 		"copyToInput": "Salin ke input (sama dengan shift + klik)",

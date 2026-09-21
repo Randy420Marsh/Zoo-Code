@@ -315,7 +315,15 @@
 	},
 	"reasoning": {
 		"thinking": "思考中",
-		"seconds": "{{count}}秒"
+		"seconds": "{{count}}秒",
+		"off": "推理已关闭",
+		"title": "推理",
+		"description": "每次请求发送的推理级别。端点不接受的级别会被提供方拒绝。",
+		"required": "该模型始终进行推理，只能更改级别。",
+		"tooltipStatus": "推理：{{effort}}",
+		"tooltipOff": "推理已关闭",
+		"toggleAriaLabel": "切换推理",
+		"cannotDisable": "你的端点模板默认保持推理开启，因此无法从这里关闭。"
 	},
 	"contextManagement": {
 		"tokens": "Token",

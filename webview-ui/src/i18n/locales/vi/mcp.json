@@ -8,6 +8,10 @@
 		"title": "Bật máy chủ MCP",
 		"description": "Bật lên để Zoo dùng công cụ từ các máy chủ MCP đã kết nối. Zoo sẽ có nhiều khả năng hơn. Nếu không dùng các công cụ này, hãy tắt để tiết kiệm chi phí token API."
 	},
+	"enableServerCreation": {
+		"title": "Bật tạo máy chủ MCP",
+		"description": "Khi bật, Zoo có thể giúp bạn tạo máy chủ MCP mới qua các lệnh như \"thêm một công cụ mới vào...\". Nếu bạn không cần tạo máy chủ MCP, hãy tắt để giảm lượng token Zoo sử dụng."
+	},
 	"editGlobalMCP": "Chỉnh sửa MCP toàn cục",
 	"editProjectMCP": "Chỉnh sửa MCP dự án",
 	"learnMoreEditingSettings": "Tìm hiểu thêm về chỉnh sửa file cài đặt MCP",

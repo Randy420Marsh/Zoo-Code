@@ -314,7 +314,15 @@
 	},
 	"reasoning": {
 		"thinking": "Sto pensando",
-		"seconds": "{{count}}s"
+		"seconds": "{{count}}s",
+		"off": "Ragionamento disattivato",
+		"title": "Ragionamento",
+		"description": "Livello di ragionamento inviato con ogni richiesta. Un livello non accettato dal tuo endpoint verrà rifiutato dal provider.",
+		"required": "Questo modello ragiona sempre; si può cambiare solo il livello.",
+		"tooltipStatus": "Ragionamento: {{effort}}",
+		"tooltipOff": "Il ragionamento è disattivato",
+		"toggleAriaLabel": "Attiva/disattiva il ragionamento",
+		"cannotDisable": "Il template del tuo endpoint mantiene il ragionamento attivo per impostazione predefinita, quindi non si può disattivare da qui."
 	},
 	"contextManagement": {
 		"tokens": "token",

@@ -1756,4 +1756,114 @@ Instructions`)
 			expect(mockRmdir).not.toHaveBeenCalled()
 		})
 	})
+
+	describe("built-in skills", () => {
+		const EXTENSION_DIR = process.platform === "win32" ? "C:\\ext" : "/ext"
+		const builtinSkillsDir = p(EXTENSION_DIR, "assets", "skills")
+		const builtinMcpSkillDir = p(builtinSkillsDir, "create-mcp-server")
+
+		// Rebuilds the manager with an extension path present, plus whatever MCP
+		// settings the test wants to exercise. Both default to unset so the
+		// "on unless explicitly disabled" behaviour is what gets tested.
+		const buildManager = (enableMcpServerCreation?: boolean, mcpEnabled?: boolean) => {
+			mockProvider = {
+				cwd: PROJECT_DIR,
+				customModesManager: {
+					getCustomModes: vi.fn().mockResolvedValue([]),
+				},
+				contextProxy: { extensionUri: { fsPath: EXTENSION_DIR } },
+				getState: vi.fn().mockResolvedValue({ enableMcpServerCreation, mcpEnabled }),
+			} as unknown as Partial<ClineProvider>
+
+			return new SkillsManager(mockProvider as ClineProvider)
+		}
+
+		const frontmatter = (name: string) => `---
+name: ${name}
+description: A bundled skill
+---
+Instructions`
+
+		beforeEach(() => {
+			mockRealpath.mockImplementation(async (pathArg: string) => pathArg)
+			mockStat.mockResolvedValue({ isDirectory: () => true })
+			mockFileExists.mockResolvedValue(true)
+			mockReadFile.mockResolvedValue(frontmatter("create-mcp-server"))
+		})
+
+		it("discovers the bundled create-mcp-server skill when the setting is on", async () => {
+			mockDirectoryExists.mockImplementation(async (dir: string) => dir === builtinSkillsDir)
+			mockReaddir.mockImplementation(async (dir: string) =>
+				dir === builtinSkillsDir ? ["create-mcp-server"] : [],
+			)
+
+			skillsManager = buildManager(true)
+			await skillsManager.discoverSkills()
+
+			const skills = skillsManager.getSkillsMetadata()
+			expect(skills).toHaveLength(1)
+			expect(skills[0]).toMatchObject({
+				name: "create-mcp-server",
+				source: "built-in",
+				path: p(builtinMcpSkillDir, "SKILL.md"),
+			})
+		})
+
+		it("defaults to on when the setting has never been written", async () => {
+			mockDirectoryExists.mockImplementation(async (dir: string) => dir === builtinSkillsDir)
+			mockReaddir.mockImplementation(async (dir: string) =>
+				dir === builtinSkillsDir ? ["create-mcp-server"] : [],
+			)
+
+			skillsManager = buildManager(undefined)
+			await skillsManager.discoverSkills()
+
+			expect(skillsManager.getSkillsMetadata().map((s) => s.name)).toEqual(["create-mcp-server"])
+		})
+
+		it("leaves the skill undiscovered when MCP server creation is disabled", async () => {
+			mockDirectoryExists.mockImplementation(async (dir: string) => dir === builtinSkillsDir)
+			mockReaddir.mockImplementation(async (dir: string) =>
+				dir === builtinSkillsDir ? ["create-mcp-server"] : [],
+			)
+
+			skillsManager = buildManager(false)
+			await skillsManager.discoverSkills()
+
+			expect(skillsManager.getSkillsMetadata()).toEqual([])
+		})
+
+		it("withdraws the skill when MCP is turned off entirely", async () => {
+			mockDirectoryExists.mockImplementation(async (dir: string) => dir === builtinSkillsDir)
+			mockReaddir.mockImplementation(async (dir: string) =>
+				dir === builtinSkillsDir ? ["create-mcp-server"] : [],
+			)
+
+			// Server creation is still on, but there is nothing to connect a new
+			// server to - and the toggle is hidden in this state.
+			skillsManager = buildManager(true, false)
+			await skillsManager.discoverSkills()
+
+			expect(skillsManager.getSkillsMetadata()).toEqual([])
+		})
+
+		it("lets a user skill of the same name override the bundled one", async () => {
+			const globalSkillsDir = p(GLOBAL_ROO_DIR, "skills")
+
+			mockDirectoryExists.mockImplementation(
+				async (dir: string) => dir === builtinSkillsDir || dir === globalSkillsDir,
+			)
+			mockReaddir.mockImplementation(async (dir: string) =>
+				dir === builtinSkillsDir || dir === globalSkillsDir ? ["create-mcp-server"] : [],
+			)
+
+			skillsManager = buildManager(true)
+			await skillsManager.discoverSkills()
+
+			// Both were found, but only the higher-priority global copy is offered.
+			const skills = skillsManager.getSkillsForMode("code")
+			expect(skills).toHaveLength(1)
+			expect(skills[0].source).toBe("global")
+		})
+	})
 })
