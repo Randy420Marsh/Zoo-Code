@@ -732,12 +732,41 @@ export class McpHub {
 						? ["/c", configInjected.command, ...(configInjected.args || [])]
 						: configInjected.args
 
+				// Expose the user's context settings to the MCP server as env vars so tools
+				// (e.g. window-capture image/video batching) can budget against the ACTUAL
+				// context window, max output tokens and the condense percentage slider the
+				// user configured, instead of hardcoded defaults.
+				const zooEnv: Record<string, string> = {}
+				try {
+					const provider = this.providerRef.deref()
+					const values = (provider?.contextProxy?.getValues?.() ?? {}) as Record<string, unknown>
+					const providerSettings = (provider?.contextProxy?.getProviderSettings?.() ?? {}) as Record<
+						string,
+						unknown
+					>
+					const contextWindow =
+						(providerSettings.contextWindow as number | undefined) ??
+						(values.contextWindow as number | undefined)
+					const maxTokens =
+						(providerSettings.maxTokens as number | undefined) ?? (values.maxTokens as number | undefined)
+					if (typeof contextWindow === "number" && contextWindow > 0)
+						zooEnv.ZOO_CONTEXT_WINDOW = String(contextWindow)
+					if (typeof maxTokens === "number" && maxTokens > 0) zooEnv.ZOO_MAX_TOKENS = String(maxTokens)
+					if (typeof values.autoCondenseContextPercent === "number")
+						zooEnv.ZOO_CONDENSE_PERCENT = String(values.autoCondenseContextPercent)
+					if (typeof values.autoCondenseContext === "boolean")
+						zooEnv.ZOO_AUTO_CONDENSE = String(values.autoCondenseContext)
+				} catch {
+					// Never let settings injection break server startup.
+				}
+
 				transport = new StdioClientTransport({
 					command,
 					args,
 					cwd: configInjected.cwd,
 					env: {
 						...getDefaultEnvironment(),
+						...zooEnv,
 						...(configInjected.env || {}),
 					},
 					stderr: "pipe",

@@ -6,7 +6,7 @@ import { TelemetryService } from "@roo-code/telemetry"
 import { t } from "../../i18n"
 import { ApiHandler, ApiHandlerCreateMessageMetadata } from "../../api"
 import { ApiMessage } from "../task-persistence/apiMessages"
-import { maybeRemoveImageBlocks } from "../../api/transform/image-cleaning"
+import { maybeRemoveImageBlocks, stripAllImageBlocks } from "../../api/transform/image-cleaning"
 import { findLast } from "../../shared/array"
 import { supportPrompt } from "../../shared/support-prompt"
 import { RooIgnoreController } from "../ignore/RooIgnoreController"
@@ -227,6 +227,14 @@ export type SummarizeConversationOptions = {
 	systemPrompt: string
 	taskId: string
 	isAutomaticTrigger?: boolean
+	/**
+	 * When true, ALL image blocks are stripped from the messages sent to the
+	 * summarization API (not just when the model lacks vision support). Used as
+	 * an escape hatch when the context has already overflowed the window: the
+	 * image payloads are what made the request too large, so they must be
+	 * removed for the condensation call itself to fit.
+	 */
+	forceStripImages?: boolean
 	customCondensingPrompt?: string
 	metadata?: ApiHandlerCreateMessageMetadata
 	environmentDetails?: string
@@ -260,6 +268,7 @@ export async function summarizeConversation(options: SummarizeConversationOption
 		systemPrompt,
 		taskId,
 		isAutomaticTrigger,
+		forceStripImages,
 		customCondensingPrompt,
 		metadata,
 		environmentDetails,
@@ -311,9 +320,14 @@ export async function summarizeConversation(options: SummarizeConversationOption
 	// This is necessary because some providers (like Bedrock via LiteLLM) require the `tools` parameter
 	// when tool blocks are present. By converting them to text, we can send the conversation for
 	// summarization without needing to pass the tools parameter.
-	const messagesWithTextToolBlocks = transformMessagesForCondensing(
-		maybeRemoveImageBlocks([...messagesWithToolResults, finalRequestMessage], apiHandler),
-	)
+	//
+	// When forceStripImages is set (context already overflowed), strip ALL image
+	// blocks regardless of model capability — otherwise the condensation request
+	// itself would exceed the window and fail, leaving the task stuck.
+	const cleanedMessages = forceStripImages
+		? stripAllImageBlocks([...messagesWithToolResults, finalRequestMessage])
+		: maybeRemoveImageBlocks([...messagesWithToolResults, finalRequestMessage], apiHandler)
+	const messagesWithTextToolBlocks = transformMessagesForCondensing(cleanedMessages)
 
 	const requestMessages = messagesWithTextToolBlocks.map(({ role, content }) => ({ role, content }))
 

@@ -4464,7 +4464,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			// Generate environment details to include in the condensed summary
 			const environmentDetails = await getEnvironmentDetails(this, true)
 
-			// Force aggressive truncation by keeping only 75% of the conversation history
+			// Force aggressive truncation by keeping only 75% of the conversation history.
+			// forceStripImages: the request already overflowed the window, and the image
+			// payloads are the most likely cause — strip them so the condensation call
+			// itself fits (otherwise condense fails with the same overflow and the task
+			// is stuck in a "Failed to condense" loop).
 			const truncateResult = await manageContext({
 				messages: this.apiConversationHistory,
 				totalTokens: contextTokens || 0,
@@ -4473,6 +4477,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				apiHandler: this.api,
 				autoCondenseContext: true,
 				autoCondenseContextPercent: FORCED_CONTEXT_REDUCTION_PERCENT,
+				forceStripImages: true,
 				systemPrompt: await this.getSystemPrompt(state, modelInfo),
 				taskId: this.taskId,
 				profileThresholds,

@@ -6,9 +6,12 @@ import { tiktoken } from "../utils/tiktoken"
 
 import { type CountTokensResult } from "./types"
 
-async function countTokens(content: Anthropic.Messages.ContentBlockParam[]): Promise<CountTokensResult> {
+async function countTokens(
+	content: Anthropic.Messages.ContentBlockParam[],
+	options?: { fudgeFactor?: number },
+): Promise<CountTokensResult> {
 	try {
-		const count = await tiktoken(content)
+		const count = await tiktoken(content, { fudgeFactor: options?.fudgeFactor })
 		return { success: true, count }
 	} catch (error) {
 		return {

@@ -5,6 +5,7 @@ import type { ModelInfo } from "@roo-code/types"
 import type { ApiHandler, ApiHandlerCreateMessageMetadata } from "../index"
 import { ApiStream } from "../transform/stream"
 import { countTokens } from "../../utils/countTokens"
+import { DEFAULT_TIKTOKEN_FUDGE_FACTOR } from "../../utils/tiktoken"
 import { isMcpTool } from "../../utils/mcp-name"
 import { getApiRequestTimeout } from "./utils/timeout-config"
 
@@ -120,6 +121,22 @@ export abstract class BaseProvider implements ApiHandler {
 			return 0
 		}
 
-		return countTokens(content, { useWorker: true })
+		// The local estimate (o200k_base, not the model's own tokenizer) feeds
+		// budgeting decisions: condense chunk packing, auto-condense threshold
+		// math, and provider usage fallbacks. The default fudge factor (1.5)
+		// compensates for the foreign tokenizer; providers whose server reports
+		// exact usage (OpenAI-compatible, LM Studio, Ollama) set
+		// `tokenFudgeFactor` to 1.0 to keep their estimates unbiased.
+		return countTokens(content, { useWorker: true, fudgeFactor: this.tokenFudgeFactor })
 	}
+
+	/**
+	 * Multiplier applied to the local tiktoken estimate in `countTokens`.
+	 * Defaults to `DEFAULT_TIKTOKEN_FUDGE_FACTOR` (1.5) to compensate for the
+	 * o200k_base BPE not matching the model's tokenizer. Providers whose server
+	 * reports exact usage should set this to 1.0 so budgeting estimates (chunk
+	 * packing, auto-condense thresholds, usage fallbacks) are not
+	 * systematically inflated.
+	 */
+	protected readonly tokenFudgeFactor: number = DEFAULT_TIKTOKEN_FUDGE_FACTOR
 }
