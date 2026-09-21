@@ -3878,7 +3878,17 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					(block) => block.type === "tool_use" || block.type === "mcp_tool_use",
 				)
 
-				if (hasTextContent || hasToolUses) {
+				// Reasoning-only response: the model spent its entire output budget
+				// on thinking and produced no text or tool calls (common with
+				// thinking models such as Qwen3 when max_tokens is exhausted during
+				// reasoning). Without handling this, the "no assistant messages"
+				// branch pops the user message and retries with the same oversized
+				// history, reproducing the same empty response in a loop. Instead,
+				// persist a synthetic assistant turn (keeping the history valid) and
+				// let the no-tool-use nudge path steer the model back on track.
+				const reasoningOnly = !hasTextContent && !hasToolUses && reasoningMessage.length > 0
+
+				if (hasTextContent || hasToolUses || reasoningOnly) {
 					// Reset counter when we get a successful response with content
 					this.consecutiveNoAssistantMessagesCount = 0
 					// Display grounding sources to the user if they exist
@@ -3899,6 +3909,16 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						assistantContent.push({
 							type: "text" as const,
 							text: assistantMessage,
+						})
+					} else if (reasoningOnly) {
+						// Reasoning-only turn: persist a short text block so the
+						// assistant message is never empty (an empty assistant
+						// message with a stripped reasoning block would break
+						// providers that require content, e.g. Gemini via
+						// OpenRouter). The nudge below keeps the loop moving.
+						assistantContent.push({
+							type: "text" as const,
+							text: "(Model produced only reasoning this turn.)",
 						})
 					}
 
@@ -4029,7 +4049,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					this.presentAssistantMessageSafe()
 				}
 
-				if (hasTextContent || hasToolUses) {
+				if (hasTextContent || hasToolUses || reasoningOnly) {
 					// NOTE: This comment is here for future reference - this was a
 					// workaround for `userMessageContent` not getting set to true.
 					// It was due to it not recursively calling for partial blocks

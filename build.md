@@ -134,7 +134,7 @@ Compare the installed bundle against what you just built — same size and
 timestamp means the new build is live:
 
 ```powershell
-Get-Item "$env:USERPROFILE\.vscode-oss\extensions\zoocodeorganization.zoo-code-3.82.0\dist\extension.js",
+Get-Item "$env:USERPROFILE\.vscode-oss\extensions\zoocodeorganization.zoo-code-3.84.0\dist\extension.js",
          "src\dist\extension.js" | Select-Object FullName, Length, LastWriteTime
 ```
 
