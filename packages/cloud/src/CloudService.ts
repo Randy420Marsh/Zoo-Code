@@ -25,7 +25,14 @@ import { StaticSettingsService } from "./StaticSettingsService.js"
 import { CloudTelemetryClient as TelemetryClient } from "./TelemetryClient.js"
 import { CloudShareService } from "./CloudShareService.js"
 import { CloudAPI } from "./CloudAPI.js"
-import { RetryQueue } from "./retry-queue/index.js"
+
+/**
+ * Workspace-state key where upstream builds persisted queued cloud requests
+ * (telemetry events and task-message backfills) for later replay. This fork has
+ * no retry queue; the key is purged on startup so nothing queued by an earlier
+ * build is kept around.
+ */
+export const LEGACY_RETRY_QUEUE_STORAGE_KEY = "roo.retryQueue"
 
 type AuthStateChangedPayload = CloudServiceEvents["auth-state-changed"][0]
 type AuthUserInfoPayload = CloudServiceEvents["user-info"][0]
@@ -77,12 +84,6 @@ export class CloudService extends EventEmitter<CloudServiceEvents> implements Di
 		return this._cloudAPI
 	}
 
-	private _retryQueue: RetryQueue | null = null
-
-	public get retryQueue() {
-		return this._retryQueue
-	}
-
 	private _isCloudAgent = false
 
 	public get isCloudAgent() {
@@ -96,8 +97,6 @@ export class CloudService extends EventEmitter<CloudServiceEvents> implements Di
 		this.log = log || console.log
 
 		this.authStateListener = (data: AuthStateChangedPayload) => {
-			// Handle retry queue based on auth state changes
-			this.handleAuthStateChangeForRetryQueue(data)
 			this.emit("auth-state-changed", data)
 		}
 
@@ -116,6 +115,8 @@ export class CloudService extends EventEmitter<CloudServiceEvents> implements Di
 		}
 
 		try {
+			await this.purgeLegacyRetryQueue()
+
 			// For testing you can create a token with:
 			// `pnpm --filter @roo-code-cloud/roomote-cli development auth job-token --job-id 1 --user-id user_2xmBhejNeDTwanM8CgIOnMgVxzC --org-id org_2wbhchVXZMQl8OS1yt0mrDazCpW`
 			// The token will last for 1 hour.
@@ -148,24 +149,7 @@ export class CloudService extends EventEmitter<CloudServiceEvents> implements Di
 
 			this._cloudAPI = new CloudAPI(this._authService, this.log)
 
-			// Initialize retry queue with auth header provider.
-			this._retryQueue = new RetryQueue(
-				this.context,
-				undefined, // Use default config.
-				this.log,
-				() => {
-					// Provide fresh auth headers for retries.
-					const sessionToken = this._authService?.getSessionToken()
-
-					if (sessionToken) {
-						return { Authorization: `Bearer ${sessionToken}` }
-					}
-
-					return undefined
-				},
-			)
-
-			this._telemetryClient = new TelemetryClient(this._authService, this._settingsService, this._retryQueue)
+			this._telemetryClient = new TelemetryClient(this._authService, this._settingsService)
 
 			this._shareService = new CloudShareService(this._cloudAPI, this._settingsService, this.log)
 
@@ -358,10 +342,6 @@ export class CloudService extends EventEmitter<CloudServiceEvents> implements Di
 			this.settingsService.dispose()
 		}
 
-		if (this._retryQueue) {
-			this._retryQueue.dispose()
-		}
-
 		this.isInitialized = false
 	}
 
@@ -438,65 +418,15 @@ export class CloudService extends EventEmitter<CloudServiceEvents> implements Di
 	}
 
 	/**
-	 * Handle auth state changes for the retry queue
-	 * - Pause queue when not in 'active-session' state
-	 * - Clear queue when user logs out or logs in as different user
-	 * - Resume queue when returning to active-session with same user
+	 * Drop any requests an upstream build queued for replay. They are never sent.
 	 */
-	private handleAuthStateChangeForRetryQueue(data: AuthStateChangedPayload): void {
-		if (!this._retryQueue) {
-			return
-		}
-
-		const newState = data.state
-		const userInfo = this.getUserInfo()
-		const newUserId = userInfo?.id
-
-		this.log(`[CloudService] Auth state changed to: ${newState}, user: ${newUserId}`)
-
-		// Handle different auth states
-		switch (newState) {
-			case "active-session": {
-				// Check if user changed (different user logged in)
-				const wasCleared = this._retryQueue.clearIfUserChanged(newUserId)
-
-				if (!wasCleared) {
-					// Same user or first login, resume the queue
-					this._retryQueue.resume()
-					this.log("[CloudService] Resuming retry queue for active session")
-				} else {
-					// Different user, queue was cleared, but we can resume processing
-					this._retryQueue.resume()
-					this.log("[CloudService] Retry queue cleared for new user, resuming processing")
-				}
-				break
+	private async purgeLegacyRetryQueue(): Promise<void> {
+		try {
+			if (this.context.workspaceState.get(LEGACY_RETRY_QUEUE_STORAGE_KEY) !== undefined) {
+				await this.context.workspaceState.update(LEGACY_RETRY_QUEUE_STORAGE_KEY, undefined)
 			}
-
-			case "logged-out":
-				// User is logged out, clear the queue
-				this._retryQueue.clearIfUserChanged(undefined)
-				this._retryQueue.pause()
-				this.log("[CloudService] Pausing and clearing retry queue for logged-out state")
-				break
-
-			case "initializing":
-			case "attempting-session":
-				// Transitional states, pause the queue but don't clear
-				this._retryQueue.pause()
-				this.log(`[CloudService] Pausing retry queue during ${newState}`)
-				break
-
-			case "inactive-session":
-				// Session is inactive (possibly expired), pause but don't clear
-				// The queue might resume if the session becomes active again
-				this._retryQueue.pause()
-				this.log("[CloudService] Pausing retry queue for inactive session")
-				break
-
-			default:
-				// Unknown state, pause as a safety measure
-				this._retryQueue.pause()
-				this.log(`[CloudService] Pausing retry queue for unknown state: ${newState}`)
+		} catch (error) {
+			this.log("[CloudService] Failed to purge legacy retry queue:", error)
 		}
 	}
 }

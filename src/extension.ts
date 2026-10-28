@@ -15,9 +15,8 @@ if (fs.existsSync(envPath)) {
 	}
 }
 
-import { isTelemetryOptedIn } from "@roo-code/types"
 import { CloudService } from "@roo-code/cloud"
-import { TelemetryService, PostHogTelemetryClient } from "@roo-code/telemetry"
+import { TelemetryService } from "@roo-code/telemetry"
 import { customToolRegistry } from "@roo-code/core"
 
 import "./utils/path" // Necessary to have access to String.prototype.toPosix.
@@ -138,14 +137,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Migrate old settings to new
 	await migrateSettings(context, outputChannel)
 
-	// Initialize telemetry service.
-	const telemetryService = TelemetryService.createInstance()
-
-	try {
-		telemetryService.register(new PostHogTelemetryClient())
-	} catch (error) {
-		console.warn("Failed to register PostHogTelemetryClient:", error)
-	}
+	// Telemetry dispatcher with no clients registered: capture calls are no-ops and nothing is sent.
+	TelemetryService.createInstance()
 
 	// Create logger for cloud services.
 	const cloudLogger = createDualLogger(createOutputChannelLogger(outputChannel))
@@ -176,29 +169,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	}
 
 	const contextProxy = await ContextProxy.getInstance(context)
-	const updateTelemetryState = () => {
-		const telemetrySetting = contextProxy.getGlobalState("telemetrySetting") ?? "unset"
-		TelemetryService.instance.updateTelemetryState(
-			isTelemetryOptedIn(telemetrySetting) && vscode.env.isTelemetryEnabled,
-		)
-	}
-
-	updateTelemetryState()
-
-	// React live to VS Code's global telemetry toggle (recommended over only reading
-	// telemetry.telemetryLevel, which PostHogTelemetryClient still checks as a secondary gate).
-	// vscode.env.isTelemetryEnabled is ANDed in directly because the deprecated
-	// telemetry.telemetryLevel setting the client checks doesn't reflect this live event.
-	context.subscriptions.push(
-		vscode.env.onDidChangeTelemetryEnabled(() => {
-			updateTelemetryState()
-
-			// Push the new vscode.env.isTelemetryEnabled value to the webview too, so its
-			// own PostHog client (gated separately in TelemetryClient.ts) can't keep
-			// sending events after the global toggle flips off mid-session.
-			void ClineProvider.getVisibleInstance()?.postStateToWebviewWithoutClineMessages()
-		}),
-	)
 
 	context.subscriptions.push(
 		registerCopilotModelBroadcast({
@@ -270,7 +240,9 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ClineProvider.sideBarId, provider, {
-			webviewOptions: { retainContextWhenHidden: true },
+			// Let VS Code release a hidden renderer. Keeping it alive also keeps a
+			// crashed gray renderer alive when the user closes and reopens the view.
+			webviewOptions: { retainContextWhenHidden: false },
 		}),
 	)
 

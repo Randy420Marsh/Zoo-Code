@@ -113,4 +113,15 @@ export interface GenerateImageParams {
 	prompt: string
 	path: string
 	image?: string
+	/** Optional target image generation model id (e.g. grok-imagine-image-2.0, gemini-3-pro-image). */
+	model?: string | null
+	/** Documented aspect ratio (xAI Imagine, Gemini) or null when the model has no such parameter. */
+	aspect_ratio?: string | null
+	/** 1k/2k for xAI images; 1K/2K/4K for Gemini images; 480p/720p/1080p for xAI video. Null when unsupported. */
+	resolution?: string | null
+	/** auto | low | medium for grok-imagine-image-2.0 (or high on OpenRouter). Null when unsupported. */
+	quality?: string | null
+	/** Pixel size only for models that document width/height. Null for xAI Imagine and Gemini. */
+	width?: number | null
+	height?: number | null
 }

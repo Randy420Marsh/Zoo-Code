@@ -513,6 +513,24 @@ export class MultiSearchReplaceDiffStrategy implements DiffStrategy {
 				bestMatchContent = midContent
 			}
 
+			// If buffered search around :start_line: missed (e.g., line numbers shifted after earlier edits
+			// or model provided an inaccurate start_line), fall back to searching the full file before failing.
+			if (
+				(matchIndex === -1 || bestMatchScore < this.fuzzyThreshold) &&
+				(searchStartIndex > 0 || searchEndIndex < resultLines.length)
+			) {
+				const {
+					bestScore,
+					bestMatchIndex,
+					bestMatchContent: fullContent,
+				} = fuzzySearch(resultLines, searchChunk, 0, resultLines.length)
+				if (bestMatchIndex !== -1 && bestScore >= this.fuzzyThreshold) {
+					matchIndex = bestMatchIndex
+					bestMatchScore = bestScore
+					bestMatchContent = fullContent
+				}
+			}
+
 			// Try aggressive line number stripping as a fallback if regular matching fails
 			if (matchIndex === -1 || bestMatchScore < this.fuzzyThreshold) {
 				// Strip both search and replace content once (simultaneously)
@@ -522,12 +540,23 @@ export class MultiSearchReplaceDiffStrategy implements DiffStrategy {
 				const aggressiveSearchLines = aggressiveSearchContent ? aggressiveSearchContent.split(/\r?\n/) : []
 				const aggressiveSearchChunk = aggressiveSearchLines.join("\n")
 
-				// Try middle-out search again with aggressive stripped content (respecting the same search bounds)
-				const {
+				// Try middle-out search again with aggressive stripped content (respecting the same search bounds, then full file)
+				let {
 					bestScore,
 					bestMatchIndex,
 					bestMatchContent: aggContent,
 				} = fuzzySearch(resultLines, aggressiveSearchChunk, searchStartIndex, searchEndIndex)
+				if (
+					(bestMatchIndex === -1 || bestScore < this.fuzzyThreshold) &&
+					(searchStartIndex > 0 || searchEndIndex < resultLines.length)
+				) {
+					const fullAgg = fuzzySearch(resultLines, aggressiveSearchChunk, 0, resultLines.length)
+					if (fullAgg.bestScore > bestScore) {
+						bestScore = fullAgg.bestScore
+						bestMatchIndex = fullAgg.bestMatchIndex
+						aggContent = fullAgg.bestMatchContent
+					}
+				}
 				if (bestMatchIndex !== -1 && bestScore >= this.fuzzyThreshold) {
 					matchIndex = bestMatchIndex
 					bestMatchScore = bestScore

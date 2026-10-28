@@ -7,6 +7,7 @@ import { LLMock } from "@copilotkit/aimock"
 import { downloadAndUnzipVSCode } from "@vscode/test-electron"
 import { _electron, expect, test, type ElectronApplication, type Page, type TestInfo } from "@playwright/test"
 import { glob } from "glob"
+import { PRIVACY_LAUNCH_ARGS } from "../privacyLaunchArgs"
 
 const packageRoot = path.resolve(__dirname, "../..")
 const repositoryRoot = path.resolve(packageRoot, "../..")
@@ -148,6 +149,7 @@ async function startScene(
 				"--disable-updates",
 				"--disable-gpu",
 				"--force-device-scale-factor=1",
+				...PRIVACY_LAUNCH_ARGS,
 			],
 			env: {
 				...process.env,

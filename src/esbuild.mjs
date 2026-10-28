@@ -33,7 +33,7 @@ async function main() {
 	const production = process.argv.includes("--production")
 	const watch = process.argv.includes("--watch")
 	const minify = production
-	const sourcemap = true // Always generate source maps for error handling.
+	const sourcemap = !production
 
 	/**
 	 * @type {import('esbuild').BuildOptions}
@@ -48,7 +48,6 @@ async function main() {
 		platform: "node",
 		define: {
 			"process.env.PKG_RELEASE_CHANNEL": JSON.stringify(process.env.PKG_RELEASE_CHANNEL || "stable"),
-			"process.env.POSTHOG_API_KEY": JSON.stringify(process.env.POSTHOG_API_KEY || ""),
 		},
 	}
 

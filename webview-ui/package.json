@@ -5,7 +5,7 @@
 	"scripts": {
 		"lint": "eslint src --ext=ts,tsx --max-warnings=0 --cache --cache-strategy content --cache-location node_modules/.cache/eslint/.eslintcache",
 		"check-types": "tsc --noEmit",
-		"pretest": "turbo run bundle --cwd ..",
+		"pretest": "node ../scripts/turbo.mjs run bundle --cwd ..",
 		"test": "vitest run",
 		"test:coverage": "vitest run --coverage",
 		"test:visual": "playwright test -c playwright-ct.config.ts",
@@ -53,7 +53,6 @@
 		"lru-cache": "^11.1.0",
 		"lucide-react": "^1.18.0",
 		"mermaid": "^11.4.1",
-		"posthog-js": "^1.227.2",
 		"pretty-bytes": "^7.0.0",
 		"react": "^18.3.1",
 		"react-compiler-runtime": "^1.0.0",
@@ -81,7 +80,8 @@
 		"use-sound": "^5.0.0",
 		"vscode-material-icons": "^0.1.1",
 		"vscrui": "^0.2.2",
-		"zod": "^4.0.0"
+		"zod": "^4.0.0",
+		"@tailwindcss/vite": "^4.0.0"
 	},
 	"devDependencies": {
 		"@playwright/test": "1.62.1",

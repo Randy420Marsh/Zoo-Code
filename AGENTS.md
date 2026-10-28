@@ -73,3 +73,55 @@ Prefer the narrowest test layer that proves the behavior. This follows standard 
 - Keep provider-specific payloads, failure streams, and assertions inline when they explain the behavior under test.
 - Prefer shared helpers for mechanical duplication; use fixtures only when setup is reusable, typed, and independently disposable.
 - New helpers must preserve failure clarity, return fresh objects, and avoid `as any`; keep unavoidable VS Code structural casts inside the helper with a brief explanation.
+
+## Provider & LLM API Documentation Sources
+
+When updating models, capabilities, modality toggles, pricing, context caching, or media generation tools, consult the official machine-readable LLM documentation indexes:
+
+- **Google Gemini & AI Studio**:
+    - Documentation index: `https://aistudio.google.com/llms.txt` and `https://ai.google.dev/gemini-api/docs/llms.txt` (note: `https://aistudio.google.com/docs/llms.txt` redirects/404s on raw curl; fetch `https://aistudio.google.com/llms.txt` or individual `https://aistudio.google.com/docs/<page>.md` pages directly).
+    - Full corpus for context caching: `https://aistudio.google.com/docs/llms-full.txt`
+    - Markdown page convention: append `.md` to any `https://aistudio.google.com/docs/...` URL (or `.md.txt` on `https://ai.google.dev/gemini-api/docs/...`), e.g.:
+        - Models & pricing: `https://aistudio.google.com/docs/models.md`, `https://aistudio.google.com/docs/pricing.md`, `https://aistudio.google.com/docs/latest-model.md`
+        - Image generation (Nano Banana 2.1 / 3.1 Flash Image / 3 Pro Image): `https://aistudio.google.com/docs/image-generation.md` (`https://ai.google.dev/gemini-api/docs/generate-content/image-generation.md.txt`)
+        - Video generation & editing (Gemini Omni Flash `gemini-omni-1.1-flash` & Veo 3.1): `https://aistudio.google.com/docs/omni.md`, `https://aistudio.google.com/docs/video.md`, `https://aistudio.google.com/docs/veo.md`
+        - Speech / TTS & audio (`gemini-3.8-flash-tts`, `gemini-3.8-flash-lite-tts`, `gemini-3.5-transcribe`, `lyria-3.5`): `https://aistudio.google.com/docs/speech-generation.md`, `https://aistudio.google.com/docs/transcribe.md`, `https://aistudio.google.com/docs/music-generation.md`
+        - Cost optimization, context caching & long context: `https://aistudio.google.com/docs/optimization.md`, `https://aistudio.google.com/docs/caching.md`, `https://aistudio.google.com/docs/long-context.md`
+- **xAI (Grok)**:
+    - Documentation index: `https://docs.x.ai/llms.txt` (append `.md` to any page URL or send `Accept: text/markdown`).
+    - Key pages:
+        - Models, Grok 4.7 & pricing: `https://docs.x.ai/developers/models.md`, `https://docs.x.ai/developers/grok-4-7.md`, `https://docs.x.ai/developers/pricing.md`, `https://docs.x.ai/developers/rest-api-reference/inference/models.md`
+        - Imagine image generation & editing (`grok-imagine-image-2.0`): `https://docs.x.ai/developers/model-capabilities/images/generation.md`, `https://docs.x.ai/developers/model-capabilities/images/editing.md`, `https://docs.x.ai/developers/rest-api-reference/inference/images.md`
+        - Imagine video generation & editing (`grok-imagine-video-2.0`): `https://docs.x.ai/developers/model-capabilities/video/generation.md`, `https://docs.x.ai/developers/model-capabilities/video/editing.md`, `https://docs.x.ai/developers/rest-api-reference/inference/videos.md`
+        - Voice, TTS & STT: `https://docs.x.ai/developers/model-capabilities/audio/voice.md`, `https://docs.x.ai/developers/model-capabilities/audio/text-to-speech.md`, `https://docs.x.ai/developers/model-capabilities/audio/speech-to-text.md`, `https://docs.x.ai/developers/rest-api-reference/inference/voice.md`
+- **OpenRouter**:
+    - Documentation index: `https://openrouter.ai/llms.txt`, `https://openrouter.ai/docs/llms.txt`, and full corpus `https://openrouter.ai/docs/llms-full.txt` (append `.md` to any page URL).
+    - Per-model API guide: `https://openrouter.ai/{author}/{model}/llms.txt` (e.g. `https://openrouter.ai/google/gemini-nano-banana-2.1/llms.txt`).
+    - Live model & multimodal discovery APIs (no API key required):
+        - Chat/general models: `https://openrouter.ai/api/v1/models`
+        - Dedicated image models: `https://openrouter.ai/api/v1/images/models` (docs: `https://openrouter.ai/docs/guides/overview/multimodal/image-generation.md`)
+        - Dedicated video models: `https://openrouter.ai/api/v1/videos/models` (docs: `https://openrouter.ai/docs/guides/overview/multimodal/video-generation.md`)
+        - Audio / TTS / STT: `https://openrouter.ai/docs/guides/overview/multimodal/audio.md`, `https://openrouter.ai/docs/guides/overview/multimodal/tts.md`, `https://openrouter.ai/docs/guides/overview/multimodal/stt.md`
+    - Cost optimization, prompt caching & cascade routing:
+        - Prompt caching & `session_id` sticky routing: `https://openrouter.ai/docs/guides/best-practices/prompt-caching.md`
+        - Jev-verified draft/escalate cascade: `https://openrouter.ai/docs/cookbook/evaluate-and-optimize/jev-verified-cascade.md`
+        - Jev Router (`typesafe/jev-router`): `https://openrouter.ai/docs/guides/routing/routers/jev-router.md`
+        - Auto Exacto & Latency optimization: `https://openrouter.ai/docs/guides/routing/auto-exacto.md`, `https://openrouter.ai/docs/guides/best-practices/latency-and-performance.md`
+
+### Local `llms.txt` Ground-of-Truth Cache & Diff Workflow
+
+- All three provider `llms.txt` indexes are cached locally in `docs/provider-llms/` (`gemini-llms.txt`, `xai-llms.txt`, `openrouter-llms.txt`, and `manifest.json`).
+- Run `pnpm check:provider-llms` to compare the live remote `llms.txt` files against the local cache and inspect exact line-by-line additions/removals (`+ [L#]` / `- [L#]`).
+- Run `pnpm sync:provider-llms` (`node scripts/sync-provider-llms.mjs --update`) to update the local cached snapshots and `manifest.json`.
+- At runtime, `src/api/providers/fetchers/providerLlmsCache.ts` checks and caches remote `llms.txt` diffs in `<globalStorageUri>/cache/llms_txt/` during background model cache initialization and enriches dynamic model descriptions.
+
+## Media Generation & Dynamic Modality Toggles
+
+- **Workspace & Artifact Safety**:
+    - During image, video, or audio generation, never read or write files outside the active project workspace unless the user explicitly asks.
+    - Never delete generated or intermediate media artifacts (such as JSON responses, URL files, or generated previews) unless the user explicitly asks.
+- **Dynamic Prompt & Tool Gating**:
+    - Do not hardcode static media tool instructions into `.roomodes` or Global Modes (`custom_modes.yaml`); keep mode definitions clean and user-editable.
+    - Both tool exposure (`generate_image`) and `CAPABILITIES` system-prompt instructions (`image`, `video`, `audio`) are dynamically gated on active Settings toggles (`allowImageGeneration`, `allowVideoGeneration`, `allowAudioGeneration`, or `experiments.imageGeneration`) across `src/core/prompts/tools/effective-tool-policy.ts`, `src/core/tools/validateToolUse.ts`, `src/core/assistant-message/presentAssistantMessage.ts`, and `src/core/prompts/sections/capabilities.ts`. When toggled off, media instructions must not be visible in the model prompt.
+- **Cross-Provider Local Fallback**:
+    - `src/core/tools/GenerateImageTool.ts` resolves API keys in priority order: (1) active provider profile / Experimental Image Generation setting, (2) saved provider profiles via `ProviderSettingsManager`, and (3) environment variables (`XAI_API_KEY`, `GEMINI_API_KEY` / `GOOGLE_API_KEY`, `OPENROUTER_API_KEY`), allowing local/custom endpoints to call external media tools when Experimental Image Generation is enabled.

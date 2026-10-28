@@ -57,7 +57,6 @@
 			"label": "¿Descubriste una vulnerabilidad?",
 			"link": "Sigue nuestro proceso de divulgación"
 		},
-		"community": "¿Quieres consejos o simplemente pasar el rato con otros usuarios de Zoo Code? Únete a <redditLink>reddit.com/r/ZooCode</redditLink> o <discordLink>discord.gg/VxfP4Vx3gX</discordLink>",
 		"contactAndCommunity": "Contacto y Comunidad",
 		"manageSettings": "Gestionar Configuración",
 		"debugMode": {

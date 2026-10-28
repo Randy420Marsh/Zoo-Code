@@ -2,6 +2,37 @@ import { execa, ExecaError } from "execa"
 import psTree from "ps-tree"
 import process from "process"
 
+function killPid(pid: number): void {
+	if (!Number.isInteger(pid) || pid <= 0) {
+		return
+	}
+	// Process-group kill stops pnpm/tsx children that survive a single SIGKILL.
+	try {
+		process.kill(-pid, "SIGKILL")
+	} catch {
+		try {
+			process.kill(pid, "SIGKILL")
+		} catch (error) {
+			console.warn(
+				`[ExecaTerminalProcess#abort] Failed to kill PID ${pid}: ${error instanceof Error ? error.message : String(error)}`,
+			)
+		}
+	}
+}
+
+function killSubprocess(subprocess: ReturnType<typeof execa> | undefined): void {
+	if (!subprocess) {
+		return
+	}
+	try {
+		subprocess.kill("SIGKILL")
+	} catch (error) {
+		console.warn(
+			`[ExecaTerminalProcess#abort] Failed to kill subprocess: ${error instanceof Error ? error.message : String(error)}`,
+		)
+	}
+}
+
 import type { RooTerminal } from "./types"
 import { BaseTerminal } from "./BaseTerminal"
 import { BaseTerminalProcess } from "./BaseTerminalProcess"
@@ -12,6 +43,8 @@ export class ExecaTerminalProcess extends BaseTerminalProcess {
 	private terminalRef: WeakRef<RooTerminal>
 	private aborted = false
 	private pid?: number
+	/** Shell pid from execa. Never replaced by the child-pid display update. */
+	private shellPid?: number
 	private subprocess?: ReturnType<typeof execa>
 	private pidUpdatePromise?: Promise<void>
 
@@ -56,6 +89,7 @@ export class ExecaTerminalProcess extends BaseTerminalProcess {
 			})`${command}`
 
 			this.pid = this.subprocess.pid
+			this.shellPid = this.subprocess.pid
 
 			// When using shell: true, the PID is for the shell, not the actual command
 			// Find the actual command PID after a small delay
@@ -166,60 +200,38 @@ export class ExecaTerminalProcess extends BaseTerminalProcess {
 	public override abort() {
 		this.aborted = true
 
-		// Function to perform the kill operations
 		const performKill = () => {
-			// Try to kill using the subprocess object
-			if (this.subprocess) {
-				try {
-					this.subprocess.kill("SIGKILL")
-				} catch (e) {
-					console.warn(
-						`[ExecaTerminalProcess#abort] Failed to kill subprocess: ${e instanceof Error ? e.message : String(e)}`,
-					)
+			const rootPid = this.shellPid ?? this.pid
+			// Collect the tree before any kill. Killing the leaf first orphans
+			// the rest, and psTree on a dead pid misses them.
+			const killCollected = (pids: number[]) => {
+				for (const pid of pids) {
+					killPid(pid)
 				}
 			}
-
-			// Kill the stored PID (which should be the actual command after our update)
-			if (this.pid) {
-				try {
-					process.kill(this.pid, "SIGKILL")
-				} catch (e) {
-					console.warn(
-						`[ExecaTerminalProcess#abort] Failed to kill process ${this.pid}: ${e instanceof Error ? e.message : String(e)}`,
-					)
-				}
+			if (!rootPid) {
+				killSubprocess(this.subprocess)
+				return
 			}
+			psTree(rootPid, (err, children) => {
+				const pids = new Set<number>([rootPid])
+				if (!err) {
+					for (const child of children) {
+						const childPid = parseInt(child.PID, 10)
+						if (!Number.isNaN(childPid)) {
+							pids.add(childPid)
+						}
+					}
+				}
+				killSubprocess(this.subprocess)
+				killCollected([...pids])
+			})
 		}
 
-		// If PID update is in progress, wait for it before killing
 		if (this.pidUpdatePromise) {
 			this.pidUpdatePromise.then(performKill).catch(() => performKill())
 		} else {
 			performKill()
-		}
-
-		// Continue with the rest of the abort logic
-		if (this.pid) {
-			// Also check for any child processes
-			psTree(this.pid, async (err, children) => {
-				if (!err) {
-					const pids = children.map((p) => parseInt(p.PID))
-
-					for (const pid of pids) {
-						try {
-							process.kill(pid, "SIGKILL")
-						} catch (e) {
-							console.warn(
-								`[ExecaTerminalProcess#abort] Failed to send SIGKILL to child PID ${pid}: ${e instanceof Error ? e.message : String(e)}`,
-							)
-						}
-					}
-				} else {
-					console.error(
-						`[ExecaTerminalProcess#abort] Failed to get process tree for PID ${this.pid}: ${err.message}`,
-					)
-				}
-			})
 		}
 	}
 

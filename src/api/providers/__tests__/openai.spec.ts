@@ -127,7 +127,7 @@ describe("OpenAiHandler", () => {
 				baseURL: expect.any(String),
 				apiKey: expect.any(String),
 				defaultHeaders: {
-					"HTTP-Referer": "https://github.com/Zoo-Code-Org/Zoo-Code",
+					"HTTP-Referer": "https://github.com/Randy420Marsh/Zoo-Code",
 					"X-Title": "Zoo Code",
 					"User-Agent": `ZooCode/${Package.version}`,
 				},

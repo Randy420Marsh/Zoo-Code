@@ -6,7 +6,7 @@ import { TelemetryEventName } from "@roo-code/types"
 import type { ClineMessage, TelemetryEvent } from "@roo-code/types"
 
 import { TaskNotFoundError } from "../errors.js"
-import { CloudService } from "../CloudService.js"
+import { CloudService, LEGACY_RETRY_QUEUE_STORAGE_KEY } from "../CloudService.js"
 import { WebAuthService } from "../WebAuthService.js"
 import { CloudSettingsService } from "../CloudSettingsService.js"
 import { CloudShareService } from "../CloudShareService.js"
@@ -201,6 +201,25 @@ describe("CloudService", () => {
 
 			await expect(CloudService.createInstance(mockContext)).rejects.toThrow("init failed")
 			expect(CloudService.hasInstance()).toBe(false)
+		})
+
+		it("should purge a retry queue persisted by an upstream build", async () => {
+			vi.mocked(mockContext.workspaceState.get).mockImplementation((key: string) =>
+				key === LEGACY_RETRY_QUEUE_STORAGE_KEY
+					? [{ url: "https://app.roocode.com/api/events", options: { method: "POST" } }]
+					: undefined,
+			)
+
+			await CloudService.createInstance(mockContext)
+
+			expect(mockContext.workspaceState.update).toHaveBeenCalledWith(LEGACY_RETRY_QUEUE_STORAGE_KEY, undefined)
+		})
+
+		it("should not touch workspace state when no legacy retry queue exists", async () => {
+			await CloudService.createInstance(mockContext)
+
+			expect(mockContext.workspaceState.get).toHaveBeenCalledWith(LEGACY_RETRY_QUEUE_STORAGE_KEY)
+			expect(mockContext.workspaceState.update).not.toHaveBeenCalled()
 		})
 	})
 

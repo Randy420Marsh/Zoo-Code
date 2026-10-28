@@ -79,6 +79,7 @@ export class UpdateTodoListTool extends BaseTool<"update_todo_list"> {
 			}
 
 			await setTodoListForTask(task, normalizedTodos)
+			task.consecutiveMistakeCount = 0
 
 			if (isTodoListChanged) {
 				const md = todoListToMarkdown(normalizedTodos)

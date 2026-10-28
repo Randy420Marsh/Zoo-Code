@@ -14,18 +14,6 @@ export const telemetrySettingsSchema = z.enum(telemetrySettings)
 export type TelemetrySetting = z.infer<typeof telemetrySettingsSchema>
 
 /**
- * Whether telemetry should be captured for this install.
- *
- * Telemetry is on by default (disclosed opt-out): "unset" (no choice made yet) and
- * "enabled" both mean telemetry may be captured. Only an explicit "disabled" opts out.
- * The consent banner's dismiss/close action never writes a setting, so it stays neutral --
- * it just leaves the default in effect rather than recording an affirmative choice either way.
- */
-export function isTelemetryOptedIn(telemetrySetting: TelemetrySetting | undefined): boolean {
-	return telemetrySetting !== "disabled"
-}
-
-/**
  * TelemetryEventName
  */
 
@@ -465,7 +453,7 @@ export function shouldReportApiErrorToTelemetry(errorCode?: number, errorMessage
 }
 
 /**
- * Generic API provider error class for structured error tracking via PostHog.
+ * Generic API provider error class for structured error reporting (the telemetry dispatcher is a no-op).
  * Can be reused by any API provider.
  */
 export class ApiProviderError extends Error {
@@ -516,7 +504,7 @@ export type ConsecutiveMistakeReason = "no_tools_used" | "tool_repetition" | "un
 /**
  * Error class for "Roo is having trouble" consecutive mistake scenarios.
  * Triggered when the task reaches the configured consecutive mistake limit.
- * Used for structured exception tracking via PostHog.
+ * Passed to the (no-op) TelemetryService; nothing is sent anywhere.
  */
 export class ConsecutiveMistakeError extends Error {
 	constructor(

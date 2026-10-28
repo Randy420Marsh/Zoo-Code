@@ -4,7 +4,7 @@ import { findLastIndex } from "../../shared/array"
 
 /**
  * Custom error class for tool result ID mismatches.
- * Used for structured error tracking via PostHog.
+ * Passed to the (no-op) TelemetryService; nothing is sent anywhere.
  */
 export class ToolResultIdMismatchError extends Error {
 	constructor(
@@ -19,8 +19,8 @@ export class ToolResultIdMismatchError extends Error {
 
 /**
  * Custom error class for missing tool results.
- * Used for structured error tracking via PostHog when tool_use blocks
- * don't have corresponding tool_result blocks.
+ * Raised when tool_use blocks don't have corresponding tool_result blocks and
+ * passed to the (no-op) TelemetryService; nothing is sent anywhere.
  */
 export class MissingToolResultError extends Error {
 	constructor(
@@ -131,7 +131,7 @@ export function validateAndFixToolResultIds(
 	const toolResultIdList = toolResults.map((r) => r.tool_use_id)
 	const toolUseIdList = toolUseBlocks.map((b) => b.id)
 
-	// Report missing tool_results to PostHog error tracking
+	// Report missing tool_results to the (no-op) telemetry dispatcher
 	if (missingToolUseIds.length > 0 && TelemetryService.hasInstance()) {
 		TelemetryService.instance.captureException(
 			new MissingToolResultError(
@@ -148,7 +148,7 @@ export function validateAndFixToolResultIds(
 		)
 	}
 
-	// Report ID mismatches to PostHog error tracking
+	// Report ID mismatches to the (no-op) telemetry dispatcher
 	if (hasInvalidIds && TelemetryService.hasInstance()) {
 		TelemetryService.instance.captureException(
 			new ToolResultIdMismatchError(

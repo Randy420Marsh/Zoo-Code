@@ -15,7 +15,11 @@ import type { McpServer } from "./mcp.js"
 import { RouterModelsMessageType, type ModelInfo, type ModelRecord, type RouterModels } from "./model.js"
 import { LmStudioModelsMessageType } from "./providers/lm-studio.js"
 import { OllamaModelsMessageType } from "./providers/ollama.js"
-import { OpenAiModelsMessageType } from "./providers/openai.js"
+import {
+	OpenAiCompatibleServerInfoMessageType,
+	OpenAiModelsMessageType,
+	type OpenAiCompatibleServerInfo,
+} from "./providers/openai.js"
 import { VsCodeLmModelsMessageType } from "./providers/vscode-llm.js"
 import type { OpenAiCodexRateLimitInfo } from "./providers/openai-codex-rate-limits.js"
 import type { SkillMetadata } from "./skills.js"
@@ -45,6 +49,7 @@ export interface ExtensionMessage {
 		| typeof RouterModelsMessageType.routerModels
 		| "zooGatewayCredentialsReady"
 		| typeof OpenAiModelsMessageType.openAiModels
+		| typeof OpenAiCompatibleServerInfoMessageType.openAiCompatibleServerInfo
 		| typeof OllamaModelsMessageType.ollamaModels
 		| typeof LmStudioModelsMessageType.lmStudioModels
 		| typeof VsCodeLmModelsMessageType.vsCodeLmModels
@@ -146,6 +151,7 @@ export interface ExtensionMessage {
 	clineMessage?: ClineMessage
 	routerModels?: RouterModels
 	openAiModels?: string[]
+	openAiCompatibleServerInfo?: OpenAiCompatibleServerInfo
 	ollamaModels?: ModelRecord
 	lmStudioModels?: ModelRecord
 	vsCodeLmModels?: {
@@ -375,20 +381,15 @@ export type ExtensionState = Pick<
 	experiments: Experiments // Map of experiment IDs to their enabled state
 
 	mcpEnabled: boolean
+	enableMcpServerCreation: boolean
 
 	mode: string
 	customModes: ModeConfig[]
 	toolRequirements?: Record<string, boolean> // Map of tool names to their requirements (e.g. {"apply_diff": true})
 
 	cwd?: string // Current working directory
+	// Inert: kept only so stored/imported settings still validate. Telemetry is never sent.
 	telemetrySetting: TelemetrySetting
-	telemetryKey?: string
-	machineId?: string
-	// Live vscode.env.isTelemetryEnabled, so the webview's own PostHog client can respect
-	// the VS Code global telemetry toggle the same way the extension-side gate does --
-	// without this, an explicit user Accept can still send events while VS Code's global
-	// telemetry is disabled.
-	vscodeTelemetryEnabled?: boolean
 
 	renderContext: "sidebar" | "editor"
 	settingsImportedAt?: number
@@ -489,6 +490,7 @@ export interface WebviewMessage {
 		| "getListApiConfiguration"
 		| "customInstructions"
 		| "webviewDidLaunch"
+		| "webviewHeartbeat"
 		| "webviewDidFocus"
 		| "newTask"
 		| "askResponse"
@@ -509,6 +511,7 @@ export interface WebviewMessage {
 		| typeof RouterModelsMessageType.flushRouterModels
 		| typeof RouterModelsMessageType.requestRouterModels
 		| typeof OpenAiModelsMessageType.requestOpenAiModels
+		| typeof OpenAiCompatibleServerInfoMessageType.requestOpenAiCompatibleServerInfo
 		| typeof OllamaModelsMessageType.requestOllamaModels
 		| typeof LmStudioModelsMessageType.requestLmStudioModels
 		| "requestRooModels"
@@ -571,7 +574,6 @@ export interface WebviewMessage {
 		| "completionCheckpointRestore"
 		| "deleteMcpServer"
 		| "codebaseIndexEnabled"
-		| "telemetrySetting"
 		| "searchFiles"
 		| "toggleApiConfigPin"
 		| "hasOpenedModeSelector"
@@ -703,7 +705,9 @@ export interface WebviewMessage {
 	modeConfig?: ModeConfig
 	timeout?: number
 	payload?: WebViewMessagePayload
-	source?: "global" | "project"
+	// "built-in" only ever applies to skills that ship with the extension, and only
+	// for reads such as openSkillFile - the host rejects it for create/move/delete.
+	source?: "built-in" | "global" | "project"
 	skillName?: string // For skill operations (createSkill, deleteSkill, moveSkill, openSkillFile)
 	/** @deprecated Use skillModeSlugs instead */
 	skillMode?: string // For skill operations (current mode restriction)
@@ -719,6 +723,7 @@ export interface WebviewMessage {
 	ids?: string[]
 	terminalOperation?: "continue" | "abort"
 	messageTs?: number
+	timestamp?: number // For webviewHeartbeat
 	messageId?: string
 	restoreCheckpoint?: boolean
 	historyPreviewCollapsed?: boolean

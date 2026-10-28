@@ -6,7 +6,7 @@ import { defineConfig, type PluginOption, type Plugin } from "vite"
 import react from "@vitejs/plugin-react"
 import tailwindcss from "@tailwindcss/vite"
 
-import { sourcemapPlugin } from "./src/vite-plugins/sourcemapPlugin"
+import { sourcemapPlugin } from "./src/vite-plugins/sourcemapPlugin.ts"
 
 function getGitSha() {
 	let gitSha: string | undefined = undefined
@@ -42,7 +42,7 @@ const persistPortPlugin = (): Plugin => ({
 			const port = address && typeof address === "object" ? address.port : null
 
 			if (port) {
-				fs.writeFileSync(resolve(__dirname, "..", ".vite-port"), port.toString())
+				fs.writeFileSync(resolve(import.meta.dirname, "..", ".vite-port"), port.toString())
 				console.log(`[Vite Plugin] Server started on port ${port}`)
 			} else {
 				console.warn("[Vite Plugin] Could not determine server port")
@@ -55,7 +55,7 @@ const persistPortPlugin = (): Plugin => ({
 export default defineConfig(({ mode }) => {
 	const outDir = "../src/webview-ui/build"
 
-	const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "src", "package.json"), "utf8"))
+	const pkg = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, "..", "src", "package.json"), "utf8"))
 	const gitSha = getGitSha()
 
 	const define: Record<string, any> = {
@@ -68,6 +68,8 @@ export default defineConfig(({ mode }) => {
 		...(gitSha ? { "process.env.PKG_SHA": JSON.stringify(gitSha) } : {}),
 	}
 
+	const isProduction = mode === "production"
+
 	const plugins: PluginOption[] = [
 		react({
 			babel: {
@@ -77,7 +79,7 @@ export default defineConfig(({ mode }) => {
 		tailwindcss(),
 		persistPortPlugin(),
 		wasmPlugin(),
-		sourcemapPlugin(),
+		...(!isProduction ? [sourcemapPlugin()] : []),
 	]
 
 	return {
@@ -89,10 +91,10 @@ export default defineConfig(({ mode }) => {
 			outDir,
 			emptyOutDir: true,
 			reportCompressedSize: false,
-			// Generate complete source maps with original TypeScript sources
-			sourcemap: true,
+			// Generate source maps only in non-production builds (F5 dev mode)
+			sourcemap: !isProduction,
 			// Vite 8 uses Rolldown/Oxc by default; keep non-production modes readable.
-			minify: mode === "production",
+			minify: isProduction,
 			// Use a single combined CSS bundle so all webviews share styles
 			cssCodeSplit: false,
 			rolldownOptions: {
@@ -100,7 +102,7 @@ export default defineConfig(({ mode }) => {
 				// dynamically imported by roo-config/index.ts, but should never be bundled
 				// in the webview since it's not available in the browser context
 				external: ["vscode"],
-				input: resolve(__dirname, "index.html"),
+				input: resolve(import.meta.dirname, "index.html"),
 				output: {
 					entryFileNames: "assets/[name].js",
 					chunkFileNames: "assets/[name]-[hash].js",
@@ -135,7 +137,7 @@ export default defineConfig(({ mode }) => {
 		},
 		define,
 		optimizeDeps: {
-			exclude: ["@vscode/codicons", "vscode-oniguruma", "shiki"],
+			exclude: ["@vscode/codicons", "vscode-oniguruma", "shiki", "vscode"],
 		},
 		assetsInclude: ["**/*.wasm", "**/*.wav"],
 	}

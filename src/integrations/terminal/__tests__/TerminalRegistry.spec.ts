@@ -395,7 +395,8 @@ describe("TerminalRegistry", () => {
 			const abort = vi.fn()
 			terminal.taskId = "task-245"
 			terminal.busy = true
-			terminal.process = { abort } as any
+			// Partial RooTerminalProcess double providing abort()
+			terminal.process = { abort } as unknown as typeof terminal.process
 
 			TerminalRegistry.releaseTerminalsForTask("task-245")
 
@@ -434,6 +435,20 @@ describe("TerminalRegistry", () => {
 			expect(a.taskId).toBeUndefined()
 			expect(abortB).not.toHaveBeenCalled()
 			expect(b.taskId).toBe("task-B")
+		})
+
+		it("aborts a busy terminal for the task without releasing it", () => {
+			const terminal = TerminalRegistry.createTerminal("/test/path", "vscode")
+			const abort = vi.fn()
+			terminal.taskId = "task-abort"
+			terminal.busy = true
+			terminal.process = { abort } as any
+
+			TerminalRegistry.abortBusyTerminalsForTask("task-abort")
+
+			expect(abort).toHaveBeenCalledTimes(1)
+			expect(terminal.taskId).toBe("task-abort")
+			expect(terminal.busy).toBe(true)
 		})
 
 		it("swallows errors thrown by process.abort() and still disassociates the terminal", () => {

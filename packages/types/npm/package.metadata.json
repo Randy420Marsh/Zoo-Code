@@ -7,16 +7,16 @@
 		"name": "@roo-code/types",
 		"registry": "https://registry.npmjs.org/"
 	},
-	"author": "Zoo Code Team",
+	"author": "Randy420Marsh",
 	"license": "MIT",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/Zoo-Code-Org/Zoo-Code.git"
+		"url": "git+https://github.com/Randy420Marsh/Zoo-Code.git"
 	},
 	"bugs": {
-		"url": "https://github.com/Zoo-Code-Org/Zoo-Code/issues"
+		"url": "https://github.com/Randy420Marsh/Zoo-Code/issues"
 	},
-	"homepage": "https://zoocode.dev",
+	"homepage": "https://github.com/Randy420Marsh/Zoo-Code#readme",
 	"keywords": ["zoo", "zoo-code", "ai"],
 	"files": ["dist"]
 }

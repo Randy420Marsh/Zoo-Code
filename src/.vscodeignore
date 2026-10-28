@@ -10,11 +10,11 @@
 !package.json
 !package.nls.*
 
-# Include the built extension
+# Include the built extension (excluding source maps)
 !dist
+dist/**/*.map
 
-# Include the built webview
-!**/*.map
+# Include the built webview (excluding source maps)
 !webview-ui/audio
 !webview-ui/build/assets/*.js
 !webview-ui/build/assets/*.ttf
@@ -32,3 +32,6 @@
 !assets/icons/**
 !assets/images/**
 !assets/marketplace/**
+
+# Include the skills that ship with the extension
+!assets/skills/**

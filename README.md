@@ -1,199 +1,145 @@
-<p align="center">
-  <a href="https://marketplace.visualstudio.com/items?itemName=ZooCodeOrganization.zoo-code"><img src="https://img.shields.io/badge/VS_Code_Marketplace-007ACC?style=flat&logo=visualstudiocode&logoColor=white" alt="VS Code Marketplace"></a>
-  <a href="https://x.com/ZooCodeDev"><img src="https://img.shields.io/badge/ZooCode-000000?style=flat&logo=x&logoColor=white" alt="X"></a>
-  <a href="https://discord.gg/VxfP4Vx3gX"><img src="https://img.shields.io/badge/Join%20Discord-5865F2?style=flat&logo=discord&logoColor=white" alt="Join Discord"></a>
-  <a href="https://www.reddit.com/r/ZooCode/"><img src="https://img.shields.io/badge/Join%20r%2FZooCode-FF4500?style=flat&logo=reddit&logoColor=white" alt="Join r/ZooCode"></a>
-  <a href="https://github.com/Zoo-Code-Org/Zoo-Code/issues"><img src="https://img.shields.io/badge/GitHub-Issues-181717?style=flat&logo=github&logoColor=white" alt="GitHub Issues"></a>
-</p>
-<p align="center">
-  <em>Get help fast → <a href="https://discord.gg/VxfP4Vx3gX">Join Discord</a> • Prefer async? → <a href="https://www.reddit.com/r/ZooCode/">Join r/ZooCode</a></em>
-</p>
+# Zoo Code (Randy420Marsh fork)
 
-# Zoo Code
-
-> Your AI-Powered Dev Team, Right in Your Editor
-
-## We are Zoo Code
-
-> Zoo Code continues development of this project after the Roo team wound down
-> active Roo Code work to focus on [Roomote](https://roomote.dev/). Thank you
-> to the Roo team for everything they built.
+> An unofficial, privacy-hardened fork of [Zoo Code](https://github.com/Zoo-Code-Org/Zoo-Code)
+> maintained at **[Randy420Marsh/Zoo-Code](https://github.com/Randy420Marsh/Zoo-Code)**.
 >
-> The core team is a group of developers who contributed to Roo previously and
-> care deeply about this plugin. We will continue to make model updates, fix
-> bugs, and release features, and we plan to listen closely to the community
-> that made this plugin so special. Join us on
-> [Discord](https://discord.gg/VxfP4Vx3gX),
-> [Reddit](https://www.reddit.com/r/ZooCode), or
-> [open a PR or issue](https://github.com/Zoo-Code-Org/Zoo-Code).
->
-> _-Zoo Code Team_
+> This fork is not affiliated with, endorsed by, or maintained by the Zoo Code
+> team. It is distributed only as a locally built VSIX and is not published to
+> the VS Code Marketplace or Open VSX.
 
-## Roo Code to Zoo Code migration
+## What this fork changes
 
-You can find a quick guide for migrating from Roo Code to Zoo Code in the [Roo→Zoo migration guide](https://docs.zoocode.dev/roo-to-zoo-migration). We plan to try and help users as they transition over, we have our [Reddit](https://www.reddit.com/r/ZooCode) and [Discord](https://discord.gg/VxfP4Vx3gX)
-for this exact support, so if you are having problems or if you have question, jump on and ask.
+- **No telemetry, at all.** The PostHog senders, the cloud telemetry client,
+  the telemetry opt-in banner and the telemetry setting have been removed from
+  the code. Nothing is sent on startup, during use, or on crash; there is no
+  setting to turn it back on.
+- **No social or community links** in the extension UI (no Discord, Reddit or X).
+- **Privacy checks:** `pnpm privacy:audit` (run after `pnpm vsix`) scans every
+  file the VSIX packages, including bundled JS and source maps, for telemetry
+  SDKs, analytics hosts and social links. The privacy test suite
+  (`src/__tests__/privacy.spec.ts`, part of `pnpm test`) checks manifests,
+  the lockfile and source for telemetry packages and senders.
+- **Build tools opted out:** Turborepo runs through `scripts/turbo.mjs` with
+  `TURBO_TELEMETRY_DISABLED=1` and `DO_NOT_TRACK=1`; CI workflows set the same,
+  and e2e VS Code instances launch with telemetry and crash reporting disabled.
+- **Multimodal & Provider Enhancements (xAI, Google Gemini, OpenRouter):**
+  - Live model catalogs for xAI (`/v1/models`), Google Gemini (`/v1beta/models`), and OpenRouter (`/api/v1/models`), plus cached provider `llms.txt` ground-of-truth indexes (`pnpm check:provider-llms`).
+  - Dynamic **Image, Video, and Audio** input/generation modality toggles across xAI, Google Gemini, and OpenRouter.
+  - Prompt caching & sticky session routing (`session_id` on OpenRouter, `x-grok-conv-id` and encrypted reasoning compaction-blob preservation on xAI).
+  - Cross-provider media generation fallback so local models (e.g., via LM Studio or Ollama) can invoke external image/media tools when enabled in Experimental Settings.
+- **Webview & Task Reliability:** Automatic dead-renderer detection and recovery via heartbeat watchdog, safe background command handling, and multi-turn tool call / diff reliability improvements.
+- Repository, issue and attribution links point to this fork.
 
-## What Zoo Code Has Added Since Roo Code
+Network traffic that remains is what you initiate: requests to the model
+providers you configure and to the MCP servers you add. The Marketplace listing
+is bundled with the extension and makes no network request. See
+[PRIVACY.md](PRIVACY.md).
 
-Zoo Code builds on the foundation created by Roo Code and continues to expand it with:
+## What Zoo Code can do
 
-- **Semble codebase intelligence** — fast, on-demand semantic code search with automatic setup and no separate indexing workflow.
-- **Stronger Orchestrator workflows** — safer delegation, parallel task coordination, reliable parent/child task recovery, and better isolation between subtasks and provider profiles.
-- **Longer autonomous runs with Destructive Command Guard (DCG)** — automatically block dangerous commands while trusted work continues without repeated approval prompts.
-- **The latest models** — ongoing support for new Claude, GPT, Gemini, Kimi, GLM, Grok, MiniMax, and other model families.
-- **More ways to connect** — new and expanded providers including Zoo Gateway, Moonshot, Kimi Code, Kenari, Friendli, OpenCode Go, and many more.
-- **More dependable terminal and editing workflows** — fixes for premature terminal completion, task-state races, context management, diff editing, and provider-specific tool use.
-- **More control over your workspace** — rules management, per-mode MCP restrictions, multi-root path controls, model reasoning options, and completion change review actions.
-
-## What's New in v3.92.0
-
-- ✨ **Faster model choice and stronger model support:** Switch models from the chat composer. Use Claude Haiku 5.5 on Amazon Bedrock, get more accurate Kimi K3 capabilities on OpenRouter, and use corrected Gemini 4 Argon limits on Vercel AI Gateway.
-- 🧭 **More reliable terminal, editing, chat, and remote workflows:** Collapse command output by default when you choose, get clearer editing failures, keep reasoning and API rows visible, and avoid startup and proxy issues in remote workspaces.
-- 🔌 **Expanded MCP marketplace:** Connect Zoo Code to AnySearch, Mailtea, and Tradehand through the MCP marketplace.
-
-<details>
-  <summary>🌐 Available languages</summary>
-
-- [English](README.md)
-- [Català](locales/ca/README.md)
-- [Deutsch](locales/de/README.md)
-- [Español](locales/es/README.md)
-- [Français](locales/fr/README.md)
-- [हिंदी](locales/hi/README.md)
-- [Bahasa Indonesia](locales/id/README.md)
-- [Italiano](locales/it/README.md)
-- [日本語](locales/ja/README.md)
-- [한국어](locales/ko/README.md)
-- [Nederlands](locales/nl/README.md)
-- [Polski](locales/pl/README.md)
-- [Português (BR)](locales/pt-BR/README.md)
-- [Русский](locales/ru/README.md)
-- [Türkçe](locales/tr/README.md)
-- [Tiếng Việt](locales/vi/README.md)
-- [简体中文](locales/zh-CN/README.md)
-- [繁體中文](locales/zh-TW/README.md)
-
-</details>
-
----
-
-## What Can Zoo Code Do For YOU?
-
-- Generate Code from natural language descriptions and specs
+- Generate code from natural language descriptions and specs
 - Adapt with Modes: Code, Architect, Ask, Debug, and Custom Modes
-- Refactor & Debug existing code
-- Write & Update documentation
-- Answer Questions about your codebase
+- Refactor and debug existing code
+- Write and update documentation
+- Answer questions about your codebase
 - Automate repetitive tasks
-- Utilize MCP Servers
+- Use MCP servers
 
-## Modes
-
-Zoo Code adapts to how you work:
-
-- Code Mode: everyday coding, edits, and file ops
-- Architect Mode: plan systems, specs, and migrations
-- Ask Mode: fast answers, explanations, and docs
-- Debug Mode: trace issues, add logs, isolate root causes
-- Custom Modes: build specialized modes for your team or workflow
-
-Learn more: [Using Modes](https://docs.zoocode.dev/basic-usage/using-modes) •
+Upstream documentation (still applicable to most features):
+[docs.zoocode.dev](https://docs.zoocode.dev) —
+[Using Modes](https://docs.zoocode.dev/basic-usage/using-modes) •
 [Custom Modes](https://docs.zoocode.dev/advanced-usage/custom-modes)
 
-## Resources
+## Issues
 
-- **[Documentation](https://docs.zoocode.dev):** The official guide to
-  installing, configuring, and mastering Zoo Code.
-- **[Discord Server](https://discord.gg/VxfP4Vx3gX):** Join the community for
-  real-time help and discussion.
-- **[Reddit Community](https://www.reddit.com/r/ZooCode/):** Share your
-  experiences and see what others are building.
-- **[GitHub Issues](https://github.com/Zoo-Code-Org/Zoo-Code/issues):** Report
-  bugs and track development.
-- **[Feature Requests](https://github.com/Zoo-Code-Org/Zoo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop):**
-  Have an idea? Share it with the developers.
+Report problems with this fork at
+[Randy420Marsh/Zoo-Code/issues](https://github.com/Randy420Marsh/Zoo-Code/issues).
 
 ---
 
-## Local Setup & Development
-
-1. **Clone** the repo:
+## Build from source
 
 ```sh
-git clone https://github.com/Zoo-Code-Org/Zoo-Code.git
-```
-
-2. **Install dependencies**:
-
-```sh
+git clone https://github.com/Randy420Marsh/Zoo-Code.git
+cd Zoo-Code
 pnpm install
+pnpm vsix
+pnpm privacy:audit
 ```
 
-3. **Run the extension**:
+A `.vsix` file is written to `bin/`. The filename includes the `version` field
+from [`src/package.json`](src/package.json) (currently `3.94.6`):
 
-There are several ways to run the Zoo Code extension:
+```text
+bin/zoo-code-3.94.6.vsix
+```
 
-### Development Mode (F5)
-
-For active development, use VSCode's built-in debugging:
-
-Press `F5` (or go to **Run** → **Start Debugging**) in VSCode. This will open a
-new VSCode window with the Zoo Code extension running.
-
-- Changes to the webview will appear immediately.
-- Changes to the core extension will also hot reload automatically.
-
-### Automated VSIX Installation
-
-To build and install the extension as a VSIX package directly into VSCode:
+List what was built:
 
 ```sh
-pnpm install:vsix [-y] [--editor=<command>]
+ls -lh bin/zoo-code-*.vsix
 ```
 
-This command will:
+`pnpm privacy:audit` scans that file and fails if anything in it would send
+telemetry.
 
-- Ask which editor command to use (code/cursor/code-insiders) - defaults to
-  'code'
-- Uninstall any existing version of the extension.
-- Build the latest VSIX package.
-- Install the newly built VSIX.
-- Prompt you to restart VS Code for changes to take effect.
+Build tool telemetry is turned off by the `pnpm` scripts themselves, so the
+steps above need no extra setup. Run Turborepo only through these scripts. A
+direct `turbo` or `npx turbo` call bypasses `scripts/turbo.mjs` and, with it,
+the opt-out. If you do call it directly, set the variables yourself first:
 
-Options:
+```sh
+export TURBO_TELEMETRY_DISABLED=1 DO_NOT_TRACK=1 TURBO_NO_UPDATE_NOTIFIER=1
+```
 
-- `-y`: Skip all confirmation prompts and use defaults
-- `--editor=<command>`: Specify the editor command (e.g., `--editor=cursor` or
-  `--editor=code-insiders`)
+`pnpm install` downloads the ripgrep binary from GitHub. This is a download,
+not a report; see [PRIVACY.md](PRIVACY.md#build-tools).
 
-### Manual VSIX Installation
+Install it with the editor CLI that is actually on your `PATH`. VSCodium's
+command is `codium`. `code` is the VS Code CLI; it is not installed with
+VSCodium, and `code --install-extension` fails with `command not found`.
 
-If you prefer to install the VSIX package manually:
+```sh
+codium --install-extension bin/zoo-code-3.94.6.vsix --force
+```
 
-1. First, build the VSIX package:
-    ```sh
-    pnpm vsix
-    ```
-2. A `.vsix` file will be generated in the `bin/` directory (e.g.,
-   `bin/zoo-code-<version>.vsix`).
-3. Install it manually using the VSCode CLI:
-    ```sh
-    code --install-extension bin/zoo-code-<version>.vsix
-    ```
+Quit the editor completely and reopen it. Reload Window often leaves the old
+extension host running.
 
----
+The repo installer uninstalls the previous copy first. It defaults to `code`,
+so on VSCodium pass the CLI:
 
-We use [changesets](https://github.com/changesets/changesets) for versioning and
-publishing. Check our `CHANGELOG.md` for release notes.
+```sh
+node scripts/install-vsix.js -y --editor=codium
+```
+
+Because the extension ID is unchanged (`ZooCodeOrganization.zoo-code`), turn off
+auto-update for this extension so a Marketplace / Open VSX release does not
+replace this build.
+
+### API Keys, Modality Toggles & Cross-Provider Media Generation
+
+Zoo Code supports dynamic **Image, Video, and Audio** modality toggles on **xAI**, **Google Gemini**, and **OpenRouter**, as well as an **Experimental Image Generation** fallback toggle so local models (e.g. on LM Studio / Ollama) can invoke external media tools when an API key is present.
+
+- **Where to set API keys** (resolved in priority order):
+  1. **Active Provider Profile** (`Settings → Providers` → `xAI API Key`, `Gemini API Key`, or `OpenRouter API Key`) or **Experimental Image Generation** (`Settings → Experimental → Image Generation`).
+  2. **Saved Provider Profiles** in Zoo Code (`ProviderSettingsManager` — automatically used for cross-provider calls when your active chat profile is `Local`).
+  3. **Environment Variables**: `XAI_API_KEY`, `GEMINI_API_KEY` (or `GOOGLE_API_KEY`), and `OPENROUTER_API_KEY`.
+- **Dynamic Prompt & Tool Gating**: Media tools (`generate_image`) and media-specific `CAPABILITIES` instructions are only injected into the model prompt when enabled in Settings; when toggled off, they are completely hidden from the model, keeping your Global Modes (`custom_modes.yaml`) and Project Modes (`.roomodes`) clean and user-editable.
+- Full guide: [`docs/wiki/API_KEYS_AND_MEDIA_GENERATION.md`](./docs/wiki/API_KEYS_AND_MEDIA_GENERATION.md). See [`CHANGELOG.md`](./CHANGELOG.md) for the release history of this fork.
+
+### Development mode (F5)
+
+Press `F5` (or **Run** → **Start Debugging**) in VS Code to open a new window
+with the extension loaded. Webview and core extension changes hot reload.
 
 ---
 
 ## Disclaimer
 
-**Please note** that Zoo Code does **not** make any representations or
+**Please note** that this fork does **not** make any representations or
 warranties regarding any code, models, or other tools provided or made available
-in connection with Zoo Code, any associated third-party tools, or any resulting
+in connection with it, any associated third-party tools, or any resulting
 outputs. You assume **all risks** associated with the use of any such tools or
 outputs; such tools are provided on an **"AS IS"** and **"AS AVAILABLE"** basis.
 Such risks may include, without limitation, intellectual property infringement,
@@ -204,21 +150,7 @@ limitation, the legality, appropriateness, and results thereof).
 
 ---
 
-## Contributing
-
-We love community contributions! Get started by reading our
-[CONTRIBUTING.md](CONTRIBUTING.md).
-
----
-
 ## License
 
-[Apache 2.0 © 2026 Zoo Code Org](./LICENSE)
-
----
-
-**Enjoy Zoo Code!** Whether you keep it on a short leash or let it roam
-autonomously, we can’t wait to see what you build. If you have questions or
-feature ideas, drop by our [Reddit community](https://www.reddit.com/r/ZooCode/)
-or [Discord](https://discord.gg/VxfP4Vx3gX), or open an
-[issue](https://github.com/Zoo-Code-Org/Zoo-Code/issues). Happy coding!
+[Apache 2.0](./LICENSE). Original work © 2026 Zoo Code; modifications © 2026
+Randy420Marsh. Zoo Code is itself derived from Roo Code.

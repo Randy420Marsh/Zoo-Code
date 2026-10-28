@@ -79,31 +79,28 @@ describe("Announcement", () => {
 		expect(screen.getAllByRole("listitem")).toHaveLength(3)
 	})
 
-	it("links support users to the Zoo Code GitHub repository", () => {
+	it("links support users to the fork's GitHub repository", () => {
 		render(<Announcement hideAnnouncement={vi.fn()} />)
 
 		expect(screen.getByRole("link", { name: "GitHub" })).toHaveAttribute("href", EXTERNAL_LINKS.GITHUB_REPO)
 	})
 
-	it("posts each announcement link to the extension host exactly once", () => {
+	it("posts the GitHub link to the extension host exactly once", () => {
 		render(<Announcement hideAnnouncement={vi.fn()} />)
 
 		fireEvent.click(screen.getByRole("link", { name: "GitHub" }))
-		fireEvent.click(screen.getByRole("link", { name: "X" }))
-		fireEvent.click(screen.getByRole("link", { name: "Discord" }))
-		fireEvent.click(screen.getByRole("link", { name: "Reddit" }))
 
-		expect(vscode.postMessage).toHaveBeenCalledTimes(4)
-		expect(vscode.postMessage).toHaveBeenNthCalledWith(1, { type: "openExternal", url: EXTERNAL_LINKS.GITHUB_REPO })
-		expect(vscode.postMessage).toHaveBeenNthCalledWith(2, { type: "openExternal", url: "https://x.com/ZooCodeDev" })
-		expect(vscode.postMessage).toHaveBeenNthCalledWith(3, {
-			type: "openExternal",
-			url: "https://discord.gg/VxfP4Vx3gX",
-		})
-		expect(vscode.postMessage).toHaveBeenNthCalledWith(4, {
-			type: "openExternal",
-			url: "https://www.reddit.com/r/ZooCode/",
-		})
+		expect(vscode.postMessage).toHaveBeenCalledTimes(1)
+		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "openExternal", url: EXTERNAL_LINKS.GITHUB_REPO })
+	})
+
+	it("renders no social media links", () => {
+		render(<Announcement hideAnnouncement={vi.fn()} />)
+
+		expect(screen.getAllByRole("link")).toHaveLength(1)
+		expect(screen.queryByRole("link", { name: "X" })).not.toBeInTheDocument()
+		expect(screen.queryByRole("link", { name: "Discord" })).not.toBeInTheDocument()
+		expect(screen.queryByRole("link", { name: "Reddit" })).not.toBeInTheDocument()
 	})
 
 	// VS Code's webview bootstrap intercepts clicks on any anchor with an href

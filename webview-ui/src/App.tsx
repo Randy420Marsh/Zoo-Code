@@ -2,13 +2,12 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useEvent } from "react-use"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
-import { type ExtensionMessage, TelemetryEventName } from "@roo-code/types"
+import type { ExtensionMessage } from "@roo-code/types"
 
 import TranslationProvider from "./i18n/TranslationContext"
 import { MarketplaceViewStateManager } from "./components/marketplace/MarketplaceViewStateManager"
 
 import { vscode } from "./utils/vscode"
-import { telemetryClient } from "./utils/TelemetryClient"
 import { initializeSourceMaps, exposeSourceMapsForDebugging } from "./utils/sourceMapInitializer"
 import { ExtensionStateContextProvider, useExtensionState } from "./context/ExtensionStateContext"
 import ChatView, { ChatViewRef } from "./components/chat/ChatView"
@@ -54,18 +53,8 @@ const tabsByMessageAction: Partial<Record<NonNullable<ExtensionMessage["action"]
 const App = () => {
 	useThemeFixtureProbe()
 
-	const {
-		didHydrateState,
-		showWelcome,
-		settingsImportedAt,
-		shouldShowAnnouncement,
-		telemetrySetting,
-		telemetryKey,
-		machineId,
-		vscodeTelemetryEnabled,
-		renderContext,
-		mdmCompliant,
-	} = useExtensionState()
+	const { didHydrateState, showWelcome, settingsImportedAt, shouldShowAnnouncement, renderContext, mdmCompliant } =
+		useExtensionState()
 
 	// Create a persistent state manager
 	const marketplaceStateManager = useMemo(() => new MarketplaceViewStateManager(), [])
@@ -119,6 +108,11 @@ const App = () => {
 			const message: ExtensionMessage = e.data
 
 			if (message.type === "action" && message.action) {
+				// A live page must answer show immediately. The extension reloads
+				// HTML only if this heartbeat does not arrive.
+				if (message.action === "didBecomeVisible") {
+					vscode.postMessage({ type: "webviewHeartbeat", timestamp: Date.now() })
+				}
 				// Handle switchTab action with tab parameter
 				if (message.action === "switchTab" && message.tab) {
 					const targetTab = message.tab as Tab
@@ -188,23 +182,26 @@ const App = () => {
 		}
 	}, [showWelcome, settingsImportedAt, tab])
 
-	useEffect(() => {
-		if (didHydrateState) {
-			// vscodeTelemetryEnabled defaults to true when the extension hasn't sent a value
-			// yet (e.g. an old extension build during a mixed rollout), matching VS Code's own
-			// default -- it must never silently disable telemetry just because the field is
-			// momentarily undefined during hydration.
-			telemetryClient.updateTelemetryState(
-				telemetrySetting,
-				telemetryKey,
-				machineId,
-				vscodeTelemetryEnabled ?? true,
-			)
-		}
-	}, [telemetrySetting, telemetryKey, machineId, vscodeTelemetryEnabled, didHydrateState])
-
 	// Tell the extension that we are ready to receive messages.
 	useEffect(() => vscode.postMessage({ type: "webviewDidLaunch" }), [])
+
+	// Heartbeat so the extension watchdog can detect a crashed webview renderer
+	// process (gray screen) and reload the view.
+	useEffect(() => {
+		const postHeartbeat = () => vscode.postMessage({ type: "webviewHeartbeat", timestamp: Date.now() })
+		postHeartbeat()
+		const interval = setInterval(postHeartbeat, 30_000)
+		const onVisible = () => {
+			if (document.visibilityState === "visible") {
+				postHeartbeat()
+			}
+		}
+		document.addEventListener("visibilitychange", onVisible)
+		return () => {
+			clearInterval(interval)
+			document.removeEventListener("visibilitychange", onVisible)
+		}
+	}, [])
 
 	useEffect(() => {
 		// Window activation and programmatic focus do not identify a chat interaction.
@@ -240,12 +237,6 @@ const App = () => {
 			}
 		}, [renderContext]),
 	)
-	// Track marketplace tab views
-	useEffect(() => {
-		if (tab === "marketplace") {
-			telemetryClient.capture(TelemetryEventName.MARKETPLACE_TAB_VIEWED)
-		}
-	}, [tab])
 
 	if (!didHydrateState) {
 		return null

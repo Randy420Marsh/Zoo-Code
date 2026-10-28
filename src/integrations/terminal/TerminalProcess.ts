@@ -630,7 +630,15 @@ export class TerminalProcess extends BaseTerminalProcess {
 	}
 
 	public override abort() {
-		if (!this.isListening) {
+		// Do NOT gate on isListening: `continue()` (agent timeout -> background)
+		// sets isListening=false while the command KEEPS RUNNING in the terminal,
+		// which made Abort a silent no-op for any backgrounded command. Instead,
+		// stop only once this process no longer owns the terminal:
+		// shellExecutionComplete() releases terminal.process, and a reused
+		// terminal points at a different process whose command we must not
+		// interrupt.
+		const terminal = this.terminalRef.deref()
+		if (!terminal || terminal.process !== this) {
 			return
 		}
 
@@ -665,15 +673,6 @@ export class TerminalProcess extends BaseTerminalProcess {
 		for (let sent = 1; sent < TerminalProcess.CTRL_C_SEND_LIMIT; sent++) {
 			await new Promise((resolve) => setTimeout(resolve, TerminalProcess.ABORT_RETRY_DELAY_MS))
 
-			// Stop as soon as there's nothing left to interrupt. `isListening` (cleared
-			// by continue()) and `terminal.busy` (cleared by shellExecutionComplete() /
-			// the "completed" event) are set on different code paths and can diverge, so
-			// either one being false is a sufficient stop signal — we deliberately check
-			// both rather than collapsing them into one.
-			if (!this.isListening) {
-				return
-			}
-
 			const terminal = this.terminalRef.deref()
 
 			// Stop if the terminal is gone, idle, or has already moved on to a different
@@ -681,6 +680,10 @@ export class TerminalProcess extends BaseTerminalProcess {
 			// tick fires, `terminal.busy` can be true for the NEW command while
 			// `terminal.process` points at a different TerminalProcess — re-sending Ctrl+C
 			// then would interrupt an unrelated command, so we bail out.
+			//
+			// NOTE: we deliberately do NOT stop when the command was backgrounded via
+			// continue() (isListening=false): the process is still running in the
+			// terminal, so we keep re-sending Ctrl+C until it actually exits.
 			if (!terminal || !terminal.busy || terminal.process !== this) {
 				return
 			}

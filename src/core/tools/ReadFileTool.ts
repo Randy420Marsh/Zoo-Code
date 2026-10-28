@@ -107,7 +107,11 @@ export class ReadFileTool extends BaseTool<"read_file"> {
 			pushToolResult(`Error: ${errorMsg}`)
 			return
 		}
-		if (params.indentation?.anchor_line !== undefined && params.indentation.anchor_line < 1) {
+		if (
+			params.mode === "indentation" &&
+			params.indentation?.anchor_line !== undefined &&
+			params.indentation.anchor_line < 1
+		) {
 			const errorMsg = `anchor_line must be a 1-indexed line number (got ${params.indentation.anchor_line}). Line numbers start at 1.`
 			pushToolResult(`Error: ${errorMsg}`)
 			return
@@ -239,6 +243,8 @@ export class ReadFileTool extends BaseTool<"read_file"> {
 			const hasErrors = fileResults.some((r) => r.status === "error" || r.status === "blocked")
 			if (hasErrors) {
 				task.didToolFailInCurrentTurn = true
+			} else if (fileResults.some((r) => r.status === "approved")) {
+				task.consecutiveMistakeCount = 0
 			}
 
 			this.buildAndPushResult(task, fileResults, pushToolResult)
@@ -798,6 +804,7 @@ export class ReadFileTool extends BaseTool<"read_file"> {
 				}
 
 				results.push(`File: ${relPath}\n${content}`)
+				task.consecutiveMistakeCount = 0
 
 				// Track file in context
 				await task.fileContextTracker.trackFileContext(relPath, "read_tool")

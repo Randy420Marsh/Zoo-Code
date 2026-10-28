@@ -667,7 +667,16 @@ export async function executeCommandInTerminal(
 		clearTimeout(agentTimeoutId)
 		clearTimeout(userTimeoutId)
 		clearTimeout(pendingCommandOutputEmitTimer)
-		task.terminalProcesses.delete(toolCallId)
+		if (runInBackground) {
+			// The command is still running. Keep the handle so the chat X can abort it.
+			const remove = () => {
+				task.terminalProcesses.delete(toolCallId)
+			}
+			void process.once("completed", remove)
+			void process.once("shell_execution_complete", remove)
+		} else {
+			task.terminalProcesses.delete(toolCallId)
+		}
 	}
 
 	if (shellIntegrationError) {

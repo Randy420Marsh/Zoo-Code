@@ -1,5 +1,6 @@
 {
 	"errors": {
+		"builtin_not_writable": "\"{{name}}\" becerisi Zoo Code ile birlikte gelir ve değiştirilemez. Onu geçersiz kılmak için aynı adda bir beceri oluştur.",
 		"name_length": "Beceri adı 1-{{maxLength}} karakter olmalıdır ({{length}} alındı)",
 		"name_format": "Beceri adı yalnızca küçük harfler, rakamlar ve tire içerebilir (başta veya sonda tire yok, ardışık tire yok)",
 		"description_length": "Beceri açıklaması 1-1024 karakter olmalıdır ({{length}} alındı)",

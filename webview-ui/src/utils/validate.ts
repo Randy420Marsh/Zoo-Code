@@ -295,7 +295,12 @@ function validateDynamicProviderModelId(
 	const provider = apiConfiguration.apiProvider ?? ""
 
 	// We only validate model ids from dynamic providers.
-	if (!isDynamicProvider(provider)) {
+	// Gemini and xAI have complete static catalogs and default model IDs even when live router models are populated.
+	if (
+		!isDynamicProvider(provider) ||
+		provider === providerIdentifiers.gemini ||
+		provider === providerIdentifiers.xai
+	) {
 		return undefined
 	}
 

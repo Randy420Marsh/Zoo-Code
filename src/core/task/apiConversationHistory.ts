@@ -10,7 +10,7 @@ import { validateAndFixToolResultIds } from "./validateToolResultIds"
 
 type ApiHistoryHandler = ApiHandler & {
 	getResponseId?: () => string | undefined
-	getEncryptedContent?: () => { encrypted_content: string; id?: string } | undefined
+	getEncryptedContent?: () => { encrypted_content: string; id?: string; summary?: unknown[] } | undefined
 	getThoughtSignature?: () => string | undefined
 	getReasoningDetails?: () => any[] | undefined
 }
@@ -81,7 +81,10 @@ function prepareAssistantMessage(
 		const reasoningBlock = {
 			type: "reasoning",
 			text: reasoning,
-			summary: [] as any[],
+			// Prefer the provider's summary. An empty array is only the fallback when
+			// the response item had none; replacing a non-empty summary modifies the
+			// item xAI uses to decode the compaction blob.
+			summary: Array.isArray(reasoningData?.summary) ? reasoningData.summary : ([] as any[]),
 			// A visible summary must not discard the encrypted state needed for continuation.
 			...(reasoningData?.encrypted_content
 				? {
@@ -95,7 +98,7 @@ function prepareAssistantMessage(
 	} else if (reasoningData?.encrypted_content) {
 		const reasoningBlock = {
 			type: "reasoning",
-			summary: [] as any[],
+			summary: Array.isArray(reasoningData.summary) ? reasoningData.summary : ([] as any[]),
 			encrypted_content: reasoningData.encrypted_content,
 			...(reasoningData.id ? { id: reasoningData.id } : {}),
 		}

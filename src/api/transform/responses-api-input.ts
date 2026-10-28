@@ -1,6 +1,31 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 
 /**
+ * Wire shape xAI decodes a compaction blob from. OpenAI's Responses schema
+ * requires `type`, `id`, and `summary` on a reasoning item
+ * (openai/resources/responses ResponseReasoningItem). xAI returns 400
+ * "Could not decode the compaction blob" when `summary` is omitted, when a
+ * present `id` is omitted, or when `content` is JSON null (the key must be
+ * absent, not null). Verified live against grok-4.7 for the summary/id cases;
+ * content:null is the same error (openai/codex#47733).
+ */
+function reasoningItemForResponsesApi(item: {
+	encrypted_content: string
+	id?: string
+	summary?: unknown
+	content?: unknown
+}): { type: "reasoning"; encrypted_content: string; summary: unknown[]; id?: string; content?: unknown[] } {
+	return {
+		type: "reasoning",
+		encrypted_content: item.encrypted_content,
+		summary: Array.isArray(item.summary) ? item.summary : [],
+		...(typeof item.id === "string" && item.id.length > 0 ? { id: item.id } : {}),
+		// Pass a real content array through unchanged. Never emit content: null.
+		...(Array.isArray(item.content) ? { content: item.content } : {}),
+	}
+}
+
+/**
  * Converts Anthropic-format messages to the OpenAI Responses API input format.
  *
  * Key differences from Chat Completions format:
@@ -17,6 +42,34 @@ export function convertToResponsesApiInput(messages: Anthropic.Messages.MessageP
 	const input: any[] = []
 
 	for (const message of messages) {
+		// Standalone reasoning items (e.g. xAI/OpenAI encrypted reasoning) must be
+		// sent back unchanged so the model keeps its reasoning across turns. xAI
+		// decodes the compaction blob from the full item shape: dropping even an
+		// empty `summary` (or a present `id`) yields 400 "Could not decode the
+		// compaction blob" — verified live against grok-4.7.
+		const item = message as unknown as {
+			type?: string
+			encrypted_content?: string
+			id?: string
+			summary?: unknown
+			content?: unknown
+		}
+		if (
+			item.type === "reasoning" &&
+			typeof item.encrypted_content === "string" &&
+			item.encrypted_content.length > 0
+		) {
+			input.push(
+				reasoningItemForResponsesApi({
+					encrypted_content: item.encrypted_content,
+					id: item.id,
+					summary: item.summary,
+					content: item.content,
+				}),
+			)
+			continue
+		}
+
 		if (typeof message.content === "string") {
 			if (message.role === "assistant") {
 				// Assistant messages use output_text in the Responses API format
@@ -52,6 +105,31 @@ export function convertToResponsesApiInput(messages: Anthropic.Messages.MessageP
 							arguments: typeof part.input === "string" ? part.input : JSON.stringify(part.input ?? {}),
 						})
 						break
+					case "reasoning" as typeof part.type: {
+						// xAI caches from the start of the input. Dropping the encrypted
+						// reasoning item (the form Task stores on assistant content) changes
+						// that prefix, so the next turn misses the cache and cannot continue
+						// the reasoning chain. Same wire shape as a standalone item: summary
+						// is required even when empty, and content: null is not legal.
+						const reasoning = part as {
+							type?: string
+							encrypted_content?: string
+							id?: string
+							summary?: unknown
+							content?: unknown
+						}
+						if (typeof reasoning.encrypted_content === "string" && reasoning.encrypted_content.length > 0) {
+							input.push(
+								reasoningItemForResponsesApi({
+									encrypted_content: reasoning.encrypted_content,
+									id: reasoning.id,
+									summary: reasoning.summary,
+									content: reasoning.content,
+								}),
+							)
+						}
+						break
+					}
 					case "thinking":
 						// Include reasoning if it has content
 						if ((part as any).thinking && (part as any).thinking.trim().length > 0) {

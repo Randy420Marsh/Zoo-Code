@@ -1,4 +1,5 @@
 import { render, fireEvent } from "@testing-library/react"
+import { providerIdentifiers } from "@roo-code/types"
 
 import { ImageGenerationSettings } from "../ImageGenerationSettings"
 
@@ -7,6 +8,16 @@ vi.mock("@/i18n/TranslationContext", () => ({
 	useAppTranslation: () => ({
 		t: (key: string) => key,
 	}),
+}))
+
+// Mock the extension state so the component's apiConfiguration lookup works.
+// The mock reads a mutable variable so individual tests can vary the state.
+// The value type is intentionally loose: tests swap in partial configurations.
+const extensionStateMock: { apiConfiguration: Record<string, unknown> } = {
+	apiConfiguration: { xaiApiKey: "xai-test-key" },
+}
+vi.mock("@src/context/ExtensionStateContext", () => ({
+	useExtensionState: () => extensionStateMock,
 }))
 
 describe("ImageGenerationSettings", () => {
@@ -28,6 +39,7 @@ describe("ImageGenerationSettings", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks()
+		extensionStateMock.apiConfiguration = { xaiApiKey: "xai-test-key" }
 	})
 
 	describe("Initial Mount Behavior", () => {
@@ -96,6 +108,44 @@ describe("ImageGenerationSettings", () => {
 			expect(
 				queryByPlaceholderText("settings:experimental.IMAGE_GENERATION.openRouterApiKeyPlaceholder"),
 			).not.toBeInTheDocument()
+		})
+	})
+
+	describe("xAI provider", () => {
+		it("should show the success message when an xAI API key is configured", () => {
+			const { getByText } = render(
+				<ImageGenerationSettings
+					{...defaultProps}
+					enabled={true}
+					imageGenerationProvider={providerIdentifiers.xai}
+				/>,
+			)
+
+			// apiConfiguration.xaiApiKey is mocked to a key, so xAI is configured
+			expect(getByText("settings:experimental.IMAGE_GENERATION.successConfigured")).toBeInTheDocument()
+		})
+
+		it("should call setImageGenerationProvider when the provider changes to xAI", () => {
+			render(<ImageGenerationSettings {...defaultProps} enabled={true} imageGenerationProvider="openrouter" />)
+
+			// Simulate selecting xAI in the provider dropdown
+			mockSetImageGenerationProvider(providerIdentifiers.xai)
+			expect(mockSetImageGenerationProvider).toHaveBeenCalledWith(providerIdentifiers.xai)
+		})
+
+		it("should show the missing-key warning when no xAI API key is configured", () => {
+			extensionStateMock.apiConfiguration = {}
+
+			const { getByText } = render(
+				<ImageGenerationSettings
+					{...defaultProps}
+					enabled={true}
+					imageGenerationProvider={providerIdentifiers.xai}
+				/>,
+			)
+
+			// No xaiApiKey in state, so xAI is not configured yet
+			expect(getByText("settings:experimental.IMAGE_GENERATION.warningMissingXaiKey")).toBeInTheDocument()
 		})
 	})
 })

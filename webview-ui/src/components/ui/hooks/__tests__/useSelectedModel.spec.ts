@@ -27,6 +27,8 @@ import {
 	openAiNativeModels,
 	minimaxDefaultModelId,
 	minimaxModels,
+	xaiModels,
+	xaiDefaultModelId,
 	friendliDefaultModelId,
 	friendliModels,
 	fireworksDefaultModelId,
@@ -2206,6 +2208,130 @@ describe("useSelectedModel", () => {
 
 			expect(result.current.id).toBe("kimi-k2-turbo-preview")
 			expect(result.current.info).toEqual(moonshotModels["kimi-k2-turbo-preview"])
+		})
+	})
+
+	describe("xAI modality gating", () => {
+		// xai is a dynamic provider: the router fetch must settle with a
+		// populated xai entry (even an empty one) before the selection resolves.
+		beforeEach(() => {
+			mockUseRouterModels.mockReturnValue(createRouterModelsResult({ [providerIdentifiers.xai]: {} }))
+			mockUseOpenRouterModelProviders.mockReturnValue(createOpenRouterModelProvidersResult({}))
+		})
+
+		const xaiConfig = { apiProvider: providerIdentifiers.xai } as ProviderSettings
+		// grok-4.7 (the default) reports supportsImages: true in the static catalog
+		const grokInfo = xaiModels[xaiDefaultModelId]
+
+		it("keeps image input on unless xaiAllowImageInput is explicitly false (opt-out)", () => {
+			expect(grokInfo.supportsImages).toBe(true)
+
+			const { result } = renderHook(() => useSelectedModel(xaiConfig), { wrapper: createWrapper() })
+			expect(result.current.info?.supportsImages).toBe(true)
+
+			const { result: off } = renderHook(
+				() => useSelectedModel({ ...xaiConfig, xaiAllowImageInput: false } as ProviderSettings),
+				{ wrapper: createWrapper() },
+			)
+			expect(off.current.info?.supportsImages).toBe(false)
+		})
+
+		it("lets an explicit generation toggle override the catalog flag", () => {
+			// grok-4.7's static entry does not report image generation; use a
+			// live-catalog model that does and verify the toggle gates it.
+			mockUseRouterModels.mockReturnValue(
+				createRouterModelsResult({
+					[providerIdentifiers.xai]: {
+						"grok-4.7": { contextWindow: 1, supportsPromptCache: false, supportsImageGeneration: true },
+					},
+				}),
+			)
+
+			// Unset: catalog flag stands.
+			const { result } = renderHook(() => useSelectedModel(xaiConfig), { wrapper: createWrapper() })
+			expect(result.current.info?.supportsImageGeneration).toBe(true)
+
+			// Explicit false: generation disabled.
+			const { result: off } = renderHook(
+				() => useSelectedModel({ ...xaiConfig, xaiAllowImageGeneration: false } as ProviderSettings),
+				{ wrapper: createWrapper() },
+			)
+			expect(off.current.info?.supportsImageGeneration).toBe(false)
+
+			// Explicit true: generation enabled.
+			const { result: on } = renderHook(
+				() => useSelectedModel({ ...xaiConfig, xaiAllowImageGeneration: true } as ProviderSettings),
+				{ wrapper: createWrapper() },
+			)
+			expect(on.current.info?.supportsImageGeneration).toBe(true)
+		})
+	})
+
+	describe("Gemini and OpenRouter modality gating", () => {
+		beforeEach(() => {
+			mockUseRouterModels.mockReturnValue(
+				createRouterModelsResult({
+					[providerIdentifiers.gemini]: {},
+					[providerIdentifiers.openrouter]: {
+						"google/gemini-3.1-flash-image": {
+							contextWindow: 1_048_576,
+							supportsPromptCache: true,
+							supportsImages: true,
+							supportsImageGeneration: true,
+						},
+					},
+				}),
+			)
+			mockUseOpenRouterModelProviders.mockReturnValue(createOpenRouterModelProvidersResult({}))
+		})
+
+		it("applies geminiAllowImageInput and geminiAllowImageGeneration overrides", () => {
+			const baseConfig: ProviderSettings = {
+				apiProvider: providerIdentifiers.gemini,
+				apiModelId: "gemini-3.8-flash",
+			}
+
+			const { result: defaults } = renderHook(() => useSelectedModel(baseConfig), { wrapper: createWrapper() })
+			expect(defaults.current.info?.supportsImages).toBe(true)
+			expect(defaults.current.info?.supportsVideoInput).toBe(true)
+			expect(defaults.current.info?.supportsAudioInput).toBe(true)
+
+			const { result: overridden } = renderHook(
+				() =>
+					useSelectedModel({
+						...baseConfig,
+						geminiAllowImageInput: false,
+						geminiAllowVideoInput: false,
+						geminiAllowImageGeneration: true,
+					}),
+				{ wrapper: createWrapper() },
+			)
+			expect(overridden.current.info?.supportsImages).toBe(false)
+			expect(overridden.current.info?.supportsVideoInput).toBe(false)
+			expect(overridden.current.info?.supportsImageGeneration).toBe(true)
+		})
+
+		it("applies openRouterAllowImageInput and openRouterAllowImageGeneration overrides", () => {
+			const baseConfig: ProviderSettings = {
+				apiProvider: providerIdentifiers.openrouter,
+				openRouterModelId: "google/gemini-3.1-flash-image",
+			}
+
+			const { result: defaults } = renderHook(() => useSelectedModel(baseConfig), { wrapper: createWrapper() })
+			expect(defaults.current.info?.supportsImages).toBe(true)
+			expect(defaults.current.info?.supportsImageGeneration).toBe(true)
+
+			const { result: overridden } = renderHook(
+				() =>
+					useSelectedModel({
+						...baseConfig,
+						openRouterAllowImageInput: false,
+						openRouterAllowImageGeneration: false,
+					}),
+				{ wrapper: createWrapper() },
+			)
+			expect(overridden.current.info?.supportsImages).toBe(false)
+			expect(overridden.current.info?.supportsImageGeneration).toBe(false)
 		})
 	})
 })

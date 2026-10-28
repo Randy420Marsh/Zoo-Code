@@ -8,11 +8,13 @@ let pool: workerpool.Pool | null | undefined = undefined
 
 export type CountTokensOptions = {
 	useWorker?: boolean
+	/** Multiplier applied to the tiktoken count (see `DEFAULT_TIKTOKEN_FUDGE_FACTOR`). */
+	fudgeFactor?: number
 }
 
 export async function countTokens(
 	content: Anthropic.Messages.ContentBlockParam[],
-	{ useWorker = true }: CountTokensOptions = {},
+	{ useWorker = true, fudgeFactor }: CountTokensOptions = {},
 ): Promise<number> {
 	// Lazily create the worker pool if it doesn't exist.
 	if (useWorker && typeof pool === "undefined") {
@@ -25,11 +27,11 @@ export async function countTokens(
 	// If the worker pool doesn't exist or the caller doesn't want to use it
 	// then, use the non-worker implementation.
 	if (!useWorker || !pool) {
-		return tiktoken(content)
+		return tiktoken(content, { fudgeFactor })
 	}
 
 	try {
-		const data = await pool.exec("countTokens", [content])
+		const data = await pool.exec("countTokens", [content, { fudgeFactor }])
 		const result = countTokensResultSchema.parse(data)
 
 		if (!result.success) {
@@ -40,6 +42,6 @@ export async function countTokens(
 	} catch (error) {
 		pool = null
 		console.error(error)
-		return tiktoken(content)
+		return tiktoken(content, { fudgeFactor })
 	}
 }

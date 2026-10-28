@@ -157,14 +157,37 @@ export function convertAnthropicContentToGemini(
 	// 1) Ensure thought signature is attached if required
 	// 2) For multiple function calls in a single message, keep the signature only on the first
 	//    functionCall part to match Gemini 3 parallel-calling behavior.
+	// 3) When a user turn contains multiple functionResponse parts separated by inlineData/text
+	//    (e.g. parallel tool calls where an earlier tool result included images), group all
+	//    functionResponse parts contiguously at the first functionResponse position.
+	const functionResponseParts = parts.filter(
+		(p) => p && typeof p === "object" && "functionResponse" in p && Boolean((p as Part).functionResponse),
+	)
+	if (functionResponseParts.length > 1) {
+		const firstFuncRespIndex = parts.findIndex(
+			(p) => p && typeof p === "object" && "functionResponse" in p && Boolean((p as Part).functionResponse),
+		)
+		const nonFunctionResponseParts = parts.filter(
+			(p) => !(p && typeof p === "object" && "functionResponse" in p && Boolean((p as Part).functionResponse)),
+		)
+		parts.splice(
+			0,
+			parts.length,
+			...nonFunctionResponseParts.slice(0, firstFuncRespIndex),
+			...functionResponseParts,
+			...nonFunctionResponseParts.slice(firstFuncRespIndex),
+		)
+	}
+
 	if (includeThoughtSignatures && activeThoughtSignature) {
 		const hasSignature = parts.some((p) => "thoughtSignature" in p)
 
 		if (!hasSignature) {
 			if (parts.length > 0) {
-				// Attach to the first part (usually text)
-				// We use the intersection type to allow adding the property safely
-				;(parts[0] as PartWithThoughtSignature).thoughtSignature = activeThoughtSignature
+				// Attach to the last non-thought text part (or first part as fallback)
+				const targetPart =
+					[...parts].reverse().find((p) => p && typeof p === "object" && "text" in p) ?? parts[0]
+				;(targetPart as PartWithThoughtSignature).thoughtSignature = activeThoughtSignature
 			} else {
 				// Create a placeholder part if no other content exists
 				const placeholder: PartWithThoughtSignature = { text: "", thoughtSignature: activeThoughtSignature }

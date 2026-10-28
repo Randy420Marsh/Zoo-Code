@@ -362,9 +362,14 @@ async function presentAssistantMessageBlock(cline: Task, policySnapshot: Request
 
 				// Resolve aliases in includedTools before validation
 				// e.g., "write_file" should resolve to "write_to_file"
-				const rawIncludedTools = policySnapshot.modelInfo?.includedTools
+				const rawIncludedTools = [
+					...(policySnapshot.modelInfo?.includedTools ?? []),
+					...(policySnapshot.modelInfo?.supportsImageGeneration === true ? ["generate_image"] : []),
+				]
 				const { resolveToolAlias } = await import("../prompts/tools/filter-tools-for-mode")
-				const includedTools = rawIncludedTools?.map((tool) => resolveToolAlias(tool))
+				const includedTools = rawIncludedTools.length
+					? rawIncludedTools.map((tool) => resolveToolAlias(tool))
+					: undefined
 
 				try {
 					// Validate under the canonical "use_mcp_tool" name: the requirements map

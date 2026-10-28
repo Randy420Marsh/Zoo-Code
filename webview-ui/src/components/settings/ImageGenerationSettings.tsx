@@ -3,6 +3,7 @@ import React, { useMemo } from "react"
 import { VSCodeCheckbox, VSCodeTextField, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { IMAGE_GENERATION_MODELS, type ImageGenerationProvider, getImageGenerationProvider } from "@roo-code/types"
 import { useAppTranslation } from "@/i18n/TranslationContext"
+import { useExtensionState } from "@src/context/ExtensionStateContext"
 
 interface ImageGenerationSettingsProps {
 	enabled: boolean
@@ -26,6 +27,7 @@ export const ImageGenerationSettings = ({
 	setImageGenerationSelectedModel,
 }: ImageGenerationSettingsProps) => {
 	const { t } = useAppTranslation()
+	const { apiConfiguration } = useExtensionState()
 
 	// Use shared utility for backwards compatibility logic
 	const currentProvider = getImageGenerationProvider(
@@ -88,8 +90,14 @@ export const ImageGenerationSettings = ({
 		setImageGenerationSelectedModel(value)
 	}
 
+	const isXai = currentProvider === providerIdentifiers.xai
+	const isGemini = currentProvider === providerIdentifiers.gemini
 	const requiresApiKey = currentProvider === providerIdentifiers.openrouter
-	const isConfigured = !requiresApiKey || (requiresApiKey && openRouterImageApiKey)
+	const isConfigured = isXai
+		? !!apiConfiguration?.xaiApiKey
+		: isGemini
+			? !!apiConfiguration?.geminiApiKey
+			: !requiresApiKey || (requiresApiKey && openRouterImageApiKey)
 
 	return (
 		<div className="space-y-4">
@@ -117,6 +125,12 @@ export const ImageGenerationSettings = ({
 							className="w-full">
 							<VSCodeOption value={providerIdentifiers.openrouter} className="py-2 px-3">
 								OpenRouter
+							</VSCodeOption>
+							<VSCodeOption value={providerIdentifiers.gemini} className="py-2 px-3">
+								{t("settings:experimental.IMAGE_GENERATION.geminiProviderOption")}
+							</VSCodeOption>
+							<VSCodeOption value={providerIdentifiers.xai} className="py-2 px-3">
+								{t("settings:experimental.IMAGE_GENERATION.xaiProviderOption")}
 							</VSCodeOption>
 						</VSCodeDropdown>
 						<p className="text-vscode-descriptionForeground text-xs mt-1">
@@ -173,7 +187,11 @@ export const ImageGenerationSettings = ({
 					{/* Status Message */}
 					{enabled && !isConfigured && (
 						<div className="p-2 bg-vscode-editorWarning-background text-vscode-editorWarning-foreground rounded text-sm">
-							{t("settings:experimental.IMAGE_GENERATION.warningMissingKey")}
+							{isXai
+								? t("settings:experimental.IMAGE_GENERATION.warningMissingXaiKey")
+								: isGemini
+									? t("settings:experimental.IMAGE_GENERATION.warningMissingGeminiKey")
+									: t("settings:experimental.IMAGE_GENERATION.warningMissingKey")}
 						</div>
 					)}
 

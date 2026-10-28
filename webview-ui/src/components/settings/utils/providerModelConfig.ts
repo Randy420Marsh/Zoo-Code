@@ -233,6 +233,8 @@ export const PROVIDERS_WITH_CUSTOM_MODEL_UI: ProviderName[] = [
 	providerIdentifiers.vscodeLm,
 	providerIdentifiers.githubCopilot,
 	providerIdentifiers.moonshot, // Moonshot has custom ModelPicker inside Moonshot.tsx
+	providerIdentifiers.xai, // xAI has custom ModelPicker + live /v1/models refresh inside XAI.tsx
+	providerIdentifiers.gemini, // Gemini has custom ModelPicker + live /v1beta/models refresh inside Gemini.tsx
 ]
 
 /**

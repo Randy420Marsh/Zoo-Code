@@ -227,10 +227,6 @@ type OpenClineInNewTabOptions = {
 }
 
 export const openClineInNewTab = async ({ context, outputChannel, webviewFocusTracker }: OpenClineInNewTabOptions) => {
-	// (This example uses webviewProvider activation event which is necessary to
-	// deserialize cached webview, but since we use retainContextWhenHidden, we
-	// don't need to use that event).
-	// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
 	const contextProxy = await ContextProxy.getInstance(context)
 
 	// Get the existing MDM service instance to ensure consistent policy enforcement
@@ -264,7 +260,8 @@ export const openClineInNewTab = async ({ context, outputChannel, webviewFocusTr
 
 	const newPanel = vscode.window.createWebviewPanel(ClineProvider.tabPanelId, "Zoo Code", targetCol, {
 		enableScripts: true,
-		retainContextWhenHidden: true,
+		// A hidden tab must release its renderer, including a crashed gray one.
+		retainContextWhenHidden: false,
 		localResourceRoots: [context.extensionUri],
 	})
 

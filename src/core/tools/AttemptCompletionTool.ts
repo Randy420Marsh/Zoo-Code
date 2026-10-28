@@ -203,7 +203,7 @@ export class AttemptCompletionTool extends BaseTool<"attempt_completion"> {
 				}
 			}
 
-			// PostHog telemetry: report here, once per model-initiated attempt_completion
+			// Token-usage flush (the telemetry dispatcher it feeds is a no-op): report here, once per model-initiated attempt_completion
 			// call, regardless of whether the user goes on to accept, decline, or give
 			// feedback. Gating this on user acceptance previously meant a task that never
 			// got an explicit "yes" (declined, abandoned mid-review, etc.) reported nothing
@@ -317,7 +317,7 @@ export class AttemptCompletionTool extends BaseTool<"attempt_completion"> {
 	 * Emits the public RooCodeEventName.TaskCompleted API event. Only called once the
 	 * task is genuinely finished (user accepted, or a subtask was successfully delegated
 	 * back to its parent) and the matching assistant turn is restart-visible -- unlike the
-	 * PostHog telemetry flush, which reports on every model-initiated attempt_completion call.
+	 * token-usage flush, which reports on every model-initiated attempt_completion call.
 	 */
 	private async emitPublicTaskCompleted(task: Task): Promise<void> {
 		const persistenceReady = await task.waitForCurrentAssistantMessagePersistence()

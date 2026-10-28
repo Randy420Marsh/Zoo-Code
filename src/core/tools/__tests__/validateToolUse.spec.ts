@@ -348,4 +348,24 @@ describe("buildToolRequirements ↔ validator agreement", () => {
 			'Tool "execute_command" is not allowed in code mode.',
 		)
 	})
+
+	it("allows generate_image and edit_file in media mode", () => {
+		const mediaMode: ModeConfig = {
+			slug: "media",
+			name: "Media",
+			roleDefinition: "Media specialist",
+			groups: ["read", "edit", "command", "mcp"],
+		}
+		expect(isToolAllowedForMode("generate_image", "media", [mediaMode])).toBe(true)
+		expect(isToolAllowedForMode("edit_file", "media", [mediaMode])).toBe(true)
+		expect(() => validateToolUse("generate_image", "media", [mediaMode])).not.toThrow()
+		expect(() => validateToolUse("edit_file", "media", [mediaMode])).not.toThrow()
+	})
+
+	it("allows edit_file when edit is in includedTools (Gemini native edit alias)", () => {
+		expect(isToolAllowedForMode("edit_file", codeMode, [], undefined, undefined, undefined, ["edit"])).toBe(true)
+		expect(() =>
+			validateToolUse("edit_file", codeMode, [], undefined, undefined, undefined, ["edit"]),
+		).not.toThrow()
+	})
 })

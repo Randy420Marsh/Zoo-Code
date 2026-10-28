@@ -173,6 +173,10 @@ export interface EffectiveToolPolicy {
 	 * matching group — prompt and validator agree.
 	 */
 	editRestriction?: { fileRegex: string; description?: string }
+	/** True when video generation is enabled for the active model/settings and command execution is permitted */
+	supportsVideoGeneration?: boolean
+	/** True when audio generation is enabled for the active model/settings and command execution is permitted */
+	supportsAudioGeneration?: boolean
 }
 
 /**
@@ -264,10 +268,31 @@ export function resolveEffectiveToolPolicy(input: EffectiveToolPolicyInput): Eff
 
 	// 2. Start from all tools granted by the mode's groups (including always-available tools).
 	const allowedToolNames = new Set<string>(getToolsForMode(modeConfig.groups))
+	if (
+		modeSlug === "media" &&
+		modeConfig.groups.some((groupEntry: GroupEntry) => getGroupName(groupEntry) === "edit")
+	) {
+		allowedToolNames.add("edit")
+		allowedToolNames.add("edit_file")
+	}
 
 	// 3. Filter through per-mode permission checks (feature/experiment flags, custom-mode overrides).
+	const modelIncludedTools = [
+		...(modelInfo?.includedTools ?? []),
+		...(modelInfo?.supportsImageGeneration === true ? ["generate_image"] : []),
+	]
 	for (const tool of Array.from(allowedToolNames)) {
-		if (!isToolAllowedForMode(tool, modeSlug, customModes ?? [], undefined, undefined, experiments ?? {})) {
+		if (
+			!isToolAllowedForMode(
+				tool,
+				modeSlug,
+				customModes ?? [],
+				undefined,
+				undefined,
+				experiments ?? {},
+				modelIncludedTools,
+			)
+		) {
 			allowedToolNames.delete(tool)
 		}
 	}
@@ -317,8 +342,14 @@ export function resolveEffectiveToolPolicy(input: EffectiveToolPolicyInput): Eff
 		allowedToolNames.delete("update_todo_list")
 	}
 
-	// 7. Drop generate_image unless the image-generation experiment is enabled.
-	if (experiments?.imageGeneration !== true) {
+	// 7. Gate generate_image on settings toggles (Experimental imageGeneration or provider supportsImageGeneration).
+	// Explicitly turning off the provider image-generation toggle (supportsImageGeneration: false) without the
+	// experimental fallback toggle enabled removes the tool and its prompt instructions even in media mode.
+	const isImageGenEnabled =
+		experiments?.imageGeneration === true ||
+		modelInfo?.supportsImageGeneration === true ||
+		(modeSlug === "media" && modelInfo?.supportsImageGeneration !== false)
+	if (!isImageGenEnabled) {
 		allowedToolNames.delete("generate_image")
 	}
 
@@ -364,6 +395,10 @@ export function resolveEffectiveToolPolicy(input: EffectiveToolPolicyInput): Eff
 	}
 
 	const hasMcpGroup = modeConfig.groups.some((groupEntry: GroupEntry) => getGroupName(groupEntry) === "mcp")
+	const supportsVideoGeneration =
+		Boolean(modelInfo?.supportsVideoGeneration) && allowedToolNames.has("execute_command")
+	const supportsAudioGeneration =
+		Boolean(modelInfo?.supportsAudioGeneration) && allowedToolNames.has("execute_command")
 
 	return {
 		tools: allowedToolNames,
@@ -371,6 +406,8 @@ export function resolveEffectiveToolPolicy(input: EffectiveToolPolicyInput): Eff
 		hasMcpTools,
 		hasMcpResources,
 		editRestriction: getEditRestriction(modeConfig.groups),
+		...(supportsVideoGeneration ? { supportsVideoGeneration: true } : {}),
+		...(supportsAudioGeneration ? { supportsAudioGeneration: true } : {}),
 	}
 }
 

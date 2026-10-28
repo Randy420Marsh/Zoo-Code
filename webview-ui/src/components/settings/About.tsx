@@ -1,15 +1,13 @@
 import { HTMLAttributes, useEffect, useState } from "react"
 import { useAppTranslation } from "@/i18n/TranslationContext"
-import { Trans } from "react-i18next"
-import { ArrowRightLeft, Download, Upload, TriangleAlert, Bug, Lightbulb, Shield, MessagesSquare } from "lucide-react"
-import { VSCodeButton, VSCodeCheckbox, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { ArrowRightLeft, Download, Upload, TriangleAlert } from "lucide-react"
+import { VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 
-import { type ExtensionMessage, type TelemetrySetting, isTelemetryOptedIn } from "@roo-code/types"
+import type { ExtensionMessage } from "@roo-code/types"
 
 import { Package } from "@roo/package"
 
 import { vscode } from "@/utils/vscode"
-import { EXTERNAL_LINKS } from "@/constants/externalLinks"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui"
 
@@ -20,13 +18,11 @@ import { SearchableSetting } from "./SearchableSetting"
 type RooHistoryImportProgress = NonNullable<ExtensionMessage["rooHistoryImportProgress"]>
 
 type AboutProps = HTMLAttributes<HTMLDivElement> & {
-	telemetrySetting: TelemetrySetting
-	setTelemetrySetting: (setting: TelemetrySetting) => void
 	debug?: boolean
 	setDebug?: (debug: boolean) => void
 }
 
-export const About = ({ telemetrySetting, setTelemetrySetting, debug, setDebug, className, ...props }: AboutProps) => {
+export const About = ({ debug, setDebug, className, ...props }: AboutProps) => {
 	const { t } = useAppTranslation()
 	const [rooHistoryImportProgress, setRooHistoryImportProgress] = useState<RooHistoryImportProgress | null>(null)
 
@@ -103,91 +99,24 @@ export const About = ({ telemetrySetting, setTelemetrySetting, debug, setDebug, 
 						? `Version: ${Package.version} (${Package.sha.slice(0, 8)})`
 						: `Version: ${Package.version}`}
 				</p>
-				<SearchableSetting
-					settingId="about-telemetry"
-					section="about"
-					label={t("settings:footer.telemetry.label")}>
-					<VSCodeCheckbox
-						checked={isTelemetryOptedIn(telemetrySetting)}
-						onChange={(e: any) => {
-							const checked = e.target.checked === true
-							setTelemetrySetting(checked ? "enabled" : "disabled")
-						}}>
-						{t("settings:footer.telemetry.label")}
-					</VSCodeCheckbox>
-					<p className="text-vscode-descriptionForeground text-sm mt-0">
-						<Trans
-							i18nKey="settings:footer.telemetry.description"
-							components={{
-								privacyLink: <VSCodeLink href="https://www.zoocode.dev/privacy" />,
-							}}
-						/>
-					</p>
-				</SearchableSetting>
-			</Section>
-
-			<Section className="space-y-0">
-				<h3>{t("settings:about.contactAndCommunity")}</h3>
-				<div className="flex flex-col gap-3">
-					<div className="flex items-start gap-2">
-						<Bug className="size-4 text-vscode-descriptionForeground shrink-0" />
-						<span>
-							{t("settings:about.bugReport.label")}{" "}
-							<VSCodeLink href={EXTERNAL_LINKS.BUG_REPORT}>
-								{t("settings:about.bugReport.link")}
-							</VSCodeLink>
-						</span>
-					</div>
-					<div className="flex items-start gap-2">
-						<Lightbulb className="size-4 text-vscode-descriptionForeground shrink-0" />
-						<span>
-							{t("settings:about.featureRequest.label")}{" "}
-							<VSCodeLink href={EXTERNAL_LINKS.FEATURE_REQUEST}>
-								{t("settings:about.featureRequest.link")}
-							</VSCodeLink>
-						</span>
-					</div>
-					<div className="flex items-start gap-2">
-						<Shield className="size-4 text-vscode-descriptionForeground shrink-0" />
-						<span>
-							{t("settings:about.securityIssue.label")}{" "}
-							<VSCodeLink href={EXTERNAL_LINKS.SECURITY_POLICY}>
-								{t("settings:about.securityIssue.link")}
-							</VSCodeLink>
-						</span>
-					</div>
-					<div className="flex items-start gap-2">
-						<MessagesSquare className="size-4 text-vscode-descriptionForeground shrink-0" />
-						<span>
-							<Trans
-								i18nKey="settings:about.community"
-								components={{
-									redditLink: <VSCodeLink href={EXTERNAL_LINKS.REDDIT} />,
-									discordLink: <VSCodeLink href={EXTERNAL_LINKS.DISCORD} />,
-								}}
-							/>
-						</span>
-					</div>
-					{setDebug && (
-						<SearchableSetting
-							settingId="about-debug-mode"
-							section="about"
-							label={t("settings:about.debugMode.label")}
-							className="mt-4 pt-4 border-t border-vscode-settings-headerBorder">
-							<VSCodeCheckbox
-								checked={debug ?? false}
-								onChange={(e: any) => {
-									const checked = e.target.checked === true
-									setDebug(checked)
-								}}>
-								{t("settings:about.debugMode.label")}
-							</VSCodeCheckbox>
-							<p className="text-vscode-descriptionForeground text-sm mt-0">
-								{t("settings:about.debugMode.description")}
-							</p>
-						</SearchableSetting>
-					)}
-				</div>
+				{setDebug && (
+					<SearchableSetting
+						settingId="about-debug-mode"
+						section="about"
+						label={t("settings:about.debugMode.label")}>
+						<VSCodeCheckbox
+							checked={debug ?? false}
+							onChange={(e: any) => {
+								const checked = e.target.checked === true
+								setDebug(checked)
+							}}>
+							{t("settings:about.debugMode.label")}
+						</VSCodeCheckbox>
+						<p className="text-vscode-descriptionForeground text-sm mt-0">
+							{t("settings:about.debugMode.description")}
+						</p>
+					</SearchableSetting>
+				)}
 			</Section>
 
 			<Section className="space-y-0">

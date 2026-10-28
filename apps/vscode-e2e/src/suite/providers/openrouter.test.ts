@@ -160,8 +160,8 @@ suite("OpenRouter provider", function () {
 			assert.strictEqual(captured.xTitle, "Zoo Code", "X-Title header should identify the extension as Zoo Code")
 			assert.strictEqual(
 				captured.httpReferer,
-				"https://github.com/Zoo-Code-Org/Zoo-Code",
-				"HTTP-Referer header should point to the Zoo Code repository",
+				"https://github.com/Randy420Marsh/Zoo-Code",
+				"HTTP-Referer header should point to the fork's repository",
 			)
 			assert.ok(
 				captured.userAgent?.startsWith("ZooCode/"),

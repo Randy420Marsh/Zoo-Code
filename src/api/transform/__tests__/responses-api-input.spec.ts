@@ -30,6 +30,74 @@ describe("convertToResponsesApiInput", () => {
 		})
 	})
 
+	describe("standalone reasoning items", () => {
+		it("passes encrypted reasoning items through unchanged", () => {
+			// Task.ts emits { type: "reasoning", encrypted_content } items from the
+			// conversation history; xAI requires them in the next request's input
+			// so the model keeps its reasoning across turns. xAI decodes the blob
+			// from the full item shape: a dropped (even empty) summary or id makes
+			// the API return 400 "Could not decode the compaction blob".
+			const messages = [
+				{
+					type: "reasoning",
+					encrypted_content: "enc-payload",
+					id: "rs_1",
+				},
+				{
+					type: "reasoning",
+					encrypted_content: "enc-payload-2",
+				},
+				{
+					type: "reasoning",
+					encrypted_content: "enc-payload-3",
+					summary: ["thought A"],
+					id: "rs_3",
+				},
+				{ role: "user", content: "next turn" },
+			] as unknown as Anthropic.Messages.MessageParam[]
+
+			const result = convertToResponsesApiInput(messages)
+
+			expect(result[0]).toEqual({
+				type: "reasoning",
+				encrypted_content: "enc-payload",
+				summary: [],
+				id: "rs_1",
+			})
+			expect(result[1]).toEqual({ type: "reasoning", encrypted_content: "enc-payload-2", summary: [] })
+			expect(result[2]).toEqual({
+				type: "reasoning",
+				encrypted_content: "enc-payload-3",
+				summary: ["thought A"],
+				id: "rs_3",
+			})
+			expect(result[3]).toEqual({ role: "user", content: [{ type: "input_text", text: "next turn" }] })
+		})
+
+		it("omits content: null and still emits summary", () => {
+			// xAI returns the compaction-blob 400 when a replayed reasoning item
+			// includes content: null. The key must be absent, not null.
+			const messages = [
+				{
+					type: "reasoning",
+					encrypted_content: "enc-payload",
+					id: "rs_1",
+					content: null,
+					summary: [{ type: "summary_text", text: "kept" }],
+				},
+			] as unknown as Anthropic.Messages.MessageParam[]
+
+			expect(convertToResponsesApiInput(messages)).toEqual([
+				{
+					type: "reasoning",
+					encrypted_content: "enc-payload",
+					id: "rs_1",
+					summary: [{ type: "summary_text", text: "kept" }],
+				},
+			])
+		})
+	})
+
 	describe("user messages with content blocks", () => {
 		it("should convert text blocks to input_text", () => {
 			const messages: Anthropic.Messages.MessageParam[] = [
@@ -210,6 +278,80 @@ describe("convertToResponsesApiInput", () => {
 					type: "message",
 					role: "assistant",
 					content: [{ type: "output_text", text: "Here is my response" }],
+				},
+			])
+		})
+
+		it("emits encrypted reasoning stored on an assistant message before the reply", () => {
+			// prepareAssistantMessage stores encrypted reasoning as the first content
+			// block. Omitting it changes the cached prefix, so the next xAI turn misses.
+			const messages = [
+				{
+					role: "assistant",
+					content: [
+						{
+							type: "reasoning",
+							summary: [],
+							encrypted_content: "enc-payload",
+							id: "rs_1",
+						},
+						{ type: "text", text: "Here is my response" },
+					],
+				},
+			] as unknown as Anthropic.Messages.MessageParam[]
+
+			expect(convertToResponsesApiInput(messages)).toEqual([
+				{ type: "reasoning", encrypted_content: "enc-payload", summary: [], id: "rs_1" },
+				{
+					type: "message",
+					role: "assistant",
+					content: [{ type: "output_text", text: "Here is my response" }],
+				},
+			])
+		})
+
+		it("defaults a missing embedded summary to [] and drops content: null", () => {
+			const messages = [
+				{
+					role: "assistant",
+					content: [
+						{
+							type: "reasoning",
+							encrypted_content: "enc-payload",
+							id: "rs_1",
+							content: null,
+						},
+						{ type: "text", text: "answer" },
+					],
+				},
+			] as unknown as Anthropic.Messages.MessageParam[]
+
+			expect(convertToResponsesApiInput(messages)).toEqual([
+				{ type: "reasoning", encrypted_content: "enc-payload", summary: [], id: "rs_1" },
+				{
+					type: "message",
+					role: "assistant",
+					content: [{ type: "output_text", text: "answer" }],
+				},
+			])
+		})
+
+		it("drops a plain-text reasoning block that has no encrypted content", () => {
+			const messages = [
+				{
+					role: "assistant",
+					content: [
+						{ type: "reasoning", text: "visible only" },
+						{ type: "text", text: "answer" },
+					],
+				},
+			] as unknown as Anthropic.Messages.MessageParam[]
+
+			expect(convertToResponsesApiInput(messages)).toEqual([
+				{
+					type: "message",
+					role: "assistant",
+					content: [{ type: "output_text", text: "answer" }],
 				},
 			])
 		})

@@ -9,28 +9,42 @@ import {
 } from "@google/genai"
 import {
 	type ModelInfo,
+	type ModelRecord,
 	type GeminiModelId,
 	geminiDefaultModelId,
 	geminiModels,
 	ApiProviderError,
+	providerIdentifiers,
 } from "@roo-code/types"
 import { TelemetryService } from "@roo-code/telemetry"
 
-import type { ApiHandlerOptions } from "../../shared/api"
+import type { ApiHandlerOptions, GetModelsOptions } from "../../shared/api"
 
 import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
 import { t } from "i18next"
 import type { ApiStream, GroundingSource } from "../transform/stream"
 import { getModelParams } from "../transform/model-params"
 
-import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata, CompletePromptOptions } from "../index"
+import type {
+	SingleCompletionHandler,
+	ApiHandlerCreateMessageMetadata,
+	CompletePromptOptions,
+	ModelCacheScope,
+} from "../index"
 import { BaseProvider } from "./base-provider"
 import { NOT_PROVIDED } from "./constants"
 import { parseVertexJsonCredentials } from "./utils/vertex-credentials"
+import { getModelsFromCache } from "./fetchers/modelCache"
+import { getGeminiModels } from "./fetchers/gemini"
 
 type GeminiHandlerOptions = ApiHandlerOptions & {
 	isVertex?: boolean
 }
+
+// Memoize root-level sanitized tool schemas by object reference so multi-turn
+// agentic loops reuse identical functionDeclarations without re-sanitizing on
+// every request, preserving Gemini's implicit prompt cache prefix.
+const sanitizedSchemaCache = new WeakMap<object, unknown>()
 
 // Gemini documents function declaration schemas as a selected OpenAPI-style
 // subset with single-value `type` plus `nullable`. In practice, third-party
@@ -52,6 +66,14 @@ function sanitizeSchemaForGemini(
 ): unknown {
 	if (!schema || typeof schema !== "object") {
 		return schema
+	}
+
+	const isRootCall = defs === undefined && activeRefs.size === 0 && !Array.isArray(schema)
+	if (isRootCall) {
+		const cached = sanitizedSchemaCache.get(schema)
+		if (cached !== undefined) {
+			return cached
+		}
 	}
 
 	if (Array.isArray(schema)) {
@@ -169,6 +191,10 @@ function sanitizeSchemaForGemini(
 		result.nullable = true
 	}
 
+	if (isRootCall) {
+		sanitizedSchemaCache.set(schema, result)
+	}
+
 	return result
 }
 
@@ -232,11 +258,14 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 	private lastThoughtSignature?: string
 	private lastResponseId?: string
 	private readonly providerName = "Gemini"
+	private models: ModelRecord = { ...geminiModels }
+	private readonly isVertex: boolean
 
 	constructor({ isVertex, ...options }: GeminiHandlerOptions) {
 		super()
 
 		this.options = options
+		this.isVertex = Boolean(isVertex)
 
 		const project = this.options.vertexProjectId ?? NOT_PROVIDED
 		const location = this.options.vertexRegion ?? NOT_PROVIDED
@@ -263,6 +292,33 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 				: isVertex
 					? new GoogleGenAI({ vertexai: true, project, location })
 					: new GoogleGenAI({ apiKey })
+
+		if (!this.isVertex) {
+			this.models = {
+				...geminiModels,
+				...(getModelsFromCache(
+					{
+						provider: providerIdentifiers.gemini,
+						apiKey: this.options.geminiApiKey,
+						baseUrl: this.options.googleGeminiBaseUrl,
+					},
+					this,
+				) ?? {}),
+			}
+		}
+	}
+
+	override getModelCacheScope(): ModelCacheScope {
+		return { urlScoped: Boolean(this.options.googleGeminiBaseUrl), keyScoped: true, authScoped: false }
+	}
+
+	async fetchModels(options: GetModelsOptions, signal?: AbortSignal): Promise<ModelRecord> {
+		const fetchOpts: [] | [{ signal: AbortSignal }] = signal ? [{ signal }] : []
+		return getGeminiModels(
+			options.apiKey ?? this.options.geminiApiKey,
+			options.baseUrl ?? this.options.googleGeminiBaseUrl,
+			...fetchOpts,
+		)
 	}
 
 	async *createMessage(
@@ -406,7 +462,12 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 		const params: GenerateContentParameters = { model, contents, config }
 
 		try {
-			const result = await this.client.models.generateContentStream(params)
+			const useStreaming = this.options.geminiStreaming !== false
+			const result = useStreaming
+				? await this.client.models.generateContentStream(params)
+				: (async function* (singleResponse) {
+						yield singleResponse
+					})(await this.client.models.generateContent(params))
 
 			let lastUsageMetadata: GenerateContentResponseUsageMetadata | undefined
 			let pendingGroundingMetadata: GroundingMetadata | undefined
@@ -545,11 +606,14 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 	}
 
 	override getModel() {
-		const modelId = this.options.apiModelId
+		const modelId = this.options.apiModelId?.trim()
 		let id: string
 		let info: ModelInfo
 
-		if (modelId && Object.hasOwn(geminiModels, modelId)) {
+		if (modelId && Object.hasOwn(this.models, modelId)) {
+			id = modelId
+			info = this.models[modelId]
+		} else if (modelId && Object.hasOwn(geminiModels, modelId)) {
 			id = modelId
 			info = geminiModels[modelId as GeminiModelId]
 		} else if (modelId && modelId.toLowerCase().startsWith("gemini-")) {
@@ -574,6 +638,28 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 		} else {
 			id = geminiDefaultModelId
 			info = geminiModels[geminiDefaultModelId]
+		}
+
+		// Apply modality toggles when explicitly configured, leaving catalog defaults
+		// untouched when unset (mirrors XAIHandler.getModel()).
+		info = { ...info }
+		if (this.options.geminiAllowImageInput === false) {
+			info.supportsImages = false
+		}
+		if (this.options.geminiAllowVideoInput === false) {
+			info.supportsVideoInput = false
+		}
+		if (this.options.geminiAllowAudioInput === false) {
+			info.supportsAudioInput = false
+		}
+		if (this.options.geminiAllowImageGeneration !== undefined) {
+			info.supportsImageGeneration = this.options.geminiAllowImageGeneration === true
+		}
+		if (this.options.geminiAllowVideoGeneration !== undefined) {
+			info.supportsVideoGeneration = this.options.geminiAllowVideoGeneration === true
+		}
+		if (this.options.geminiAllowAudioGeneration !== undefined) {
+			info.supportsAudioGeneration = this.options.geminiAllowAudioGeneration === true
 		}
 
 		const params = getModelParams({

@@ -889,8 +889,20 @@ describe("TerminalProcess", () => {
 			expect(mockTerminal.sendText).toHaveBeenCalledTimes(2)
 		})
 
-		it("does nothing when the process is no longer listening (#266)", async () => {
-			terminalProcess["isListening"] = false
+		it("still interrupts a command that continue() moved to the background", async () => {
+			// continue() stops listening to output, but the command keeps running.
+			mockTerminalInfo.busy = true
+			terminalProcess.continue()
+
+			terminalProcess.abort()
+			await vi.advanceTimersByTimeAsync(RETRY_DELAY_MS * (MAX_ATTEMPTS + 2))
+
+			expect(mockTerminal.sendText).toHaveBeenCalledTimes(MAX_ATTEMPTS)
+			expect(mockTerminal.sendText).toHaveBeenCalledWith("\x03")
+		})
+
+		it("does nothing once the process has completed and released the terminal (#266)", async () => {
+			mockTerminalInfo.shellExecutionComplete({ exitCode: 0 })
 
 			terminalProcess.abort()
 			await vi.advanceTimersByTimeAsync(RETRY_DELAY_MS * MAX_ATTEMPTS)

@@ -74,6 +74,12 @@ export const toolParamNames = [
 	"todos",
 	"prompt",
 	"image",
+	"aspect_ratio",
+	"resolution",
+	"quality",
+	"width",
+	"height",
+	"model",
 	// read_file parameters (native protocol)
 	"operations", // search_and_replace parameter for multiple operations
 	"patch", // apply_patch parameter

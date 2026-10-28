@@ -581,6 +581,12 @@ export class NativeToolCallParser {
 						prompt: partialArgs.prompt,
 						path: partialArgs.path,
 						image: partialArgs.image,
+						model: partialArgs.model,
+						aspect_ratio: partialArgs.aspect_ratio,
+						resolution: partialArgs.resolution,
+						quality: partialArgs.quality,
+						width: partialArgs.width,
+						height: partialArgs.height,
 					}
 				}
 				break
@@ -923,6 +929,12 @@ export class NativeToolCallParser {
 							prompt: args.prompt,
 							path: args.path,
 							image: args.image,
+							model: args.model,
+							aspect_ratio: args.aspect_ratio,
+							resolution: args.resolution,
+							quality: args.quality,
+							width: args.width,
+							height: args.height,
 						} as NativeArgsFor<TName>
 					}
 					break

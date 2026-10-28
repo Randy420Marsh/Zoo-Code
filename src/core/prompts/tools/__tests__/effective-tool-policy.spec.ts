@@ -259,6 +259,44 @@ describe("resolveEffectiveToolPolicy - conditional gates", () => {
 		expect(policyFor(["read", "edit", "command"]).tools.has("generate_image")).toBe(false)
 	})
 
+	it("exposes generate_image and edit_file in media mode even when imageGeneration experiment is unset", () => {
+		const mediaMode: ModeConfig = {
+			slug: "media",
+			name: "Media",
+			roleDefinition: "Media specialist",
+			groups: ["read", "edit", "command", "mcp"],
+		}
+		const policy = resolveEffectiveToolPolicy({
+			mode: "media",
+			customModes: [mediaMode],
+		})
+		expect(policy.tools.has("generate_image")).toBe(true)
+		expect(policy.tools.has("edit")).toBe(true)
+		expect(policy.tools.has("edit_file")).toBe(true)
+	})
+
+	it("enables generate_image in code mode when modelInfo.supportsImageGeneration is true and drops it when false", () => {
+		expect(
+			policyFor(["read", "edit", "command"], {
+				modelInfo: modelInfo({ supportsImageGeneration: true }),
+			}).tools.has("generate_image"),
+		).toBe(true)
+
+		const mediaMode: ModeConfig = {
+			slug: "media",
+			name: "Media",
+			roleDefinition: "Media specialist",
+			groups: ["read", "edit", "command"],
+		}
+		expect(
+			resolveEffectiveToolPolicy({
+				mode: "media",
+				customModes: [mediaMode],
+				modelInfo: modelInfo({ supportsImageGeneration: false }),
+			}).tools.has("generate_image"),
+		).toBe(false)
+	})
+
 	it("drops run_slash_command unless the runSlashCommand experiment is enabled", () => {
 		expect(
 			policyFor(["read", "edit", "command"], { experiments: { runSlashCommand: true } }).tools.has(

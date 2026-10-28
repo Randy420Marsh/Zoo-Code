@@ -572,6 +572,7 @@ const ApiOptions = ({
 						<Gemini
 							apiConfiguration={apiConfiguration}
 							setApiConfigurationField={setApiConfigurationField}
+							simplifySettings={fromWelcomeView}
 						/>
 					)}
 
@@ -652,7 +653,11 @@ const ApiOptions = ({
 					)}
 
 					{selectedProvider === providerIdentifiers.xai && (
-						<XAI apiConfiguration={apiConfiguration} setApiConfigurationField={setApiConfigurationField} />
+						<XAI
+							apiConfiguration={apiConfiguration}
+							setApiConfigurationField={setApiConfigurationField}
+							simplifySettings={fromWelcomeView}
+						/>
 					)}
 
 					{selectedProvider === providerIdentifiers.litellm && (

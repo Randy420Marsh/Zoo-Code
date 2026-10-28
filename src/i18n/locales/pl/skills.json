@@ -1,5 +1,6 @@
 {
 	"errors": {
+		"builtin_not_writable": "Umiejętność \"{{name}}\" jest dostarczana z Zoo Code i nie można jej zmienić. Utwórz umiejętność o tej samej nazwie, aby ją nadpisać.",
 		"name_length": "Nazwa umiejętności musi mieć 1-{{maxLength}} znaków (otrzymano {{length}})",
 		"name_format": "Nazwa umiejętności może zawierać tylko małe litery, cyfry i myślniki (bez myślników na początku lub końcu, bez następujących po sobie myślników)",
 		"description_length": "Opis umiejętności musi mieć 1-1024 znaków (otrzymano {{length}})",

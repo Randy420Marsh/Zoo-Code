@@ -1,5 +1,6 @@
 {
 	"errors": {
+		"builtin_not_writable": "L'habilitat \"{{name}}\" ve inclosa amb Zoo Code i no es pot modificar. Crea una habilitat amb el mateix nom per substituir-la.",
 		"name_length": "El nom de l'habilitat ha de tenir entre 1 i {{maxLength}} caràcters (s'han rebut {{length}})",
 		"name_format": "El nom de l'habilitat només pot contenir lletres minúscules, números i guions (sense guions inicials o finals, sense guions consecutius)",
 		"description_length": "La descripció de l'habilitat ha de tenir entre 1 i 1024 caràcters (s'han rebut {{length}})",

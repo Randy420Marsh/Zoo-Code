@@ -2,7 +2,6 @@ import React from "react"
 import { act, fireEvent, render, screen } from "@/utils/test-utils"
 
 import { TranslationProvider } from "@/i18n/__mocks__/TranslationContext"
-import { EXTERNAL_LINKS } from "@/constants/externalLinks"
 import { vscode } from "@/utils/vscode"
 
 import { About } from "../About"
@@ -61,8 +60,8 @@ vi.mock("@roo/package", () => ({
 
 describe("About", () => {
 	const defaultProps = {
-		telemetrySetting: "enabled" as const,
-		setTelemetrySetting: vi.fn(),
+		debug: false,
+		setDebug: vi.fn(),
 	}
 
 	const renderAbout = () =>
@@ -112,73 +111,37 @@ describe("About", () => {
 		expect(screen.getByText(/Version: 1\.0\.0/)).toBeInTheDocument()
 	})
 
-	it("renders the bug report section with label and link text", () => {
-		render(
-			<TranslationProvider>
-				<About {...defaultProps} />
-			</TranslationProvider>,
-		)
-		expect(screen.getByText("settings:about.bugReport.label")).toBeInTheDocument()
-		expect(screen.getByRole("link", { name: "settings:about.bugReport.link" })).toHaveAttribute(
-			"href",
-			EXTERNAL_LINKS.BUG_REPORT,
-		)
+	it("does not render telemetry, contact or community sections", () => {
+		renderAbout()
+
+		expect(screen.queryByRole("checkbox", { name: /telemetry/i })).not.toBeInTheDocument()
+		expect(screen.queryByText("settings:about.bugReport.label")).not.toBeInTheDocument()
+		expect(screen.queryByText("settings:about.featureRequest.label")).not.toBeInTheDocument()
+		expect(screen.queryByText("settings:about.securityIssue.label")).not.toBeInTheDocument()
+		expect(screen.queryAllByRole("link")).toHaveLength(0)
 	})
 
-	it("renders the feature request section with label and link text", () => {
+	it("renders the debug checkbox reflecting the debug prop", () => {
 		render(
 			<TranslationProvider>
-				<About {...defaultProps} />
+				<About {...defaultProps} debug={true} />
 			</TranslationProvider>,
 		)
-		expect(screen.getByText("settings:about.featureRequest.label")).toBeInTheDocument()
-		expect(screen.getByRole("link", { name: "settings:about.featureRequest.link" })).toHaveAttribute(
-			"href",
-			EXTERNAL_LINKS.FEATURE_REQUEST,
-		)
+
+		expect(screen.getByRole("checkbox", { name: "settings:about.debugMode.label" })).toBeChecked()
 	})
 
-	it("renders the security issue section with label and link text", () => {
+	it("calls setDebug when the debug checkbox is toggled", () => {
+		const setDebug = vi.fn()
 		render(
 			<TranslationProvider>
-				<About {...defaultProps} />
-			</TranslationProvider>,
-		)
-		expect(screen.getByText("settings:about.securityIssue.label")).toBeInTheDocument()
-		expect(screen.getByRole("link", { name: "settings:about.securityIssue.link" })).toHaveAttribute(
-			"href",
-			EXTERNAL_LINKS.SECURITY_POLICY,
-		)
-	})
-
-	it("shows the telemetry checkbox as checked when the setting is explicitly enabled", () => {
-		render(
-			<TranslationProvider>
-				<About {...defaultProps} telemetrySetting="enabled" />
+				<About {...defaultProps} setDebug={setDebug} />
 			</TranslationProvider>,
 		)
 
-		expect(screen.getByRole("checkbox", { name: /telemetry/i })).toBeChecked()
-	})
+		fireEvent.click(screen.getByRole("checkbox", { name: "settings:about.debugMode.label" }))
 
-	it("shows the telemetry checkbox as checked when the setting is unset (disclosed opt-out default)", () => {
-		render(
-			<TranslationProvider>
-				<About {...defaultProps} telemetrySetting="unset" />
-			</TranslationProvider>,
-		)
-
-		expect(screen.getByRole("checkbox", { name: /telemetry/i })).toBeChecked()
-	})
-
-	it("does not show the telemetry checkbox as checked when the setting is disabled", () => {
-		render(
-			<TranslationProvider>
-				<About {...defaultProps} telemetrySetting="disabled" />
-			</TranslationProvider>,
-		)
-
-		expect(screen.getByRole("checkbox", { name: /telemetry/i })).not.toBeChecked()
+		expect(setDebug).toHaveBeenCalledWith(true)
 	})
 
 	it("renders export, import, and reset buttons", () => {

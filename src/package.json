@@ -3,24 +3,20 @@
 	"displayName": "%extension.displayName%",
 	"description": "%extension.description%",
 	"publisher": "ZooCodeOrganization",
-	"version": "3.92.0",
+	"version": "3.94.6",
 	"icon": "assets/icons/icon.png",
-	"galleryBanner": {
-		"color": "#617A91",
-		"theme": "dark"
-	},
 	"engines": {
 		"vscode": "^1.100.0",
-		"node": "22.23.4"
+		"node": "24.18.0"
 	},
 	"author": {
-		"name": "Zoo Code"
+		"name": "Randy420Marsh"
 	},
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/Zoo-Code-Org/Zoo-Code"
+		"url": "https://github.com/Randy420Marsh/Zoo-Code"
 	},
-	"homepage": "https://zoocode.dev",
+	"homepage": "https://github.com/Randy420Marsh/Zoo-Code#readme",
 	"categories": [
 		"AI",
 		"Chat",
@@ -464,7 +460,7 @@
 		"format": "prettier --write .",
 		"bundle": "node esbuild.mjs",
 		"vscode:prepublish": "pnpm bundle --production",
-		"vsix": "mkdirp ../bin && vsce package --no-dependencies --out ../bin",
+		"vsix": "mkdirp ../bin && env -u npm_config_catalog -u npm_config_verify_deps_before_run vsce package --no-dependencies --out ../bin",
 		"publish:vsce": "npx @vscode/vsce publish --packagePath ../bin/zoo-code-$npm_package_version.vsix",
 		"publish:ovsx": "pnpm exec ovsx publish ../bin/zoo-code-$npm_package_version.vsix --skip-duplicate",
 		"publish:marketplace": "pnpm vsix && pnpm publish:vsce && pnpm publish:ovsx",
@@ -540,7 +536,8 @@
 		"web-tree-sitter": "^0.25.6",
 		"workerpool": "^9.2.0",
 		"yaml": "^2.8.0",
-		"zod": "4.6.7"
+		"zod": "4.6.7",
+		"semver-compare": "^1.0.0"
 	},
 	"devDependencies": {
 		"@roo-code/build": "workspace:^",
@@ -555,7 +552,7 @@
 		"@types/ps-tree": "1.1.6",
 		"@types/vscode": "1.100.0",
 		"@vitest/coverage-v8": "catalog:",
-		"@vscode/vsce": "3.9.2",
+		"@vscode/vsce": "4.0.0",
 		"ai": "7.0.148",
 		"esbuild-wasm": "0.28.2",
 		"execa": "9.6.1",
@@ -563,6 +560,11 @@
 		"nock": "14.0.17",
 		"ovsx": "0.10.12",
 		"rimraf": "6.0.1",
-		"vitest": "catalog:"
+		"vitest": "catalog:",
+		"@ai-sdk/openai-compatible": "3.0.70",
+		"@types/semver-compare": "1.0.3"
+	},
+	"bugs": {
+		"url": "https://github.com/Randy420Marsh/Zoo-Code/issues"
 	}
 }

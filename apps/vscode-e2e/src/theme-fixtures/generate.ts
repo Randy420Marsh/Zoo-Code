@@ -4,6 +4,7 @@ import path from "path"
 
 import { runTests } from "@vscode/test-electron"
 import type { WebviewThemeFixture } from "@roo-code/types"
+import { PRIVACY_LAUNCH_ARGS } from "../privacyLaunchArgs"
 
 import { themeFixtureDefinitions } from "./definitions"
 import { createSerializedFixtures, findDriftedFixtures } from "./fixtures"
@@ -84,6 +85,7 @@ async function main(): Promise<void> {
 				"--disable-workspace-trust",
 				"--skip-welcome",
 				"--skip-release-notes",
+				...PRIVACY_LAUNCH_ARGS,
 			],
 			extensionTestsEnv: {
 				...process.env,

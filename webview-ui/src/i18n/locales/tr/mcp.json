@@ -8,6 +8,10 @@
 		"title": "MCP Sunucularını Etkinleştir",
 		"description": "Bunu AÇ, böylece Zoo bağlı MCP sunucularından araçlar kullanabilir. Zoo'ya daha fazla yetenek kazandırır. Ekstra araçları kullanmayacaksan, API token maliyetini azaltmak için bunu KAPAT."
 	},
+	"enableServerCreation": {
+		"title": "MCP Sunucusu Oluşturmayı Etkinleştir",
+		"description": "Etkinleştirildiğinde Zoo, \"...için yeni bir araç ekle\" gibi komutlarla yeni MCP sunucuları oluşturmana yardımcı olabilir. MCP sunucusu oluşturmana gerek yoksa, Zoo'nun token kullanımını azaltmak için bunu kapatabilirsin."
+	},
 	"editGlobalMCP": "Global MCP'yi Düzenle",
 	"editProjectMCP": "Proje MCP'sini Düzenle",
 	"learnMoreEditingSettings": "MCP ayar dosyalarını düzenleme hakkında daha fazla bilgi",

@@ -1,0 +1,58 @@
+{
+	"updatedAt": "2026-10-28T07:37:59.304Z",
+	"providers": {
+		"gemini": {
+			"provider": "gemini",
+			"name": "Google Gemini & AI Studio",
+			"url": "https://aistudio.google.com/llms.txt",
+			"secondaryUrl": "https://ai.google.dev/gemini-api/docs/llms.txt",
+			"cacheFile": "gemini-llms.txt",
+			"sha256": "00a854c47fa46fdf0cca9b987074959261afad0907df945a7a2fef3dd78e00c5",
+			"lineCount": 449,
+			"modelReferenceCount": 299,
+			"checkedAt": "2026-10-28T07:37:58.383Z",
+			"lastDiff": {
+				"changed": false,
+				"addedCount": 0,
+				"removedCount": 0,
+				"addedLines": [],
+				"removedLines": []
+			}
+		},
+		"xai": {
+			"provider": "xai",
+			"name": "xAI (Grok)",
+			"url": "https://docs.x.ai/llms.txt",
+			"cacheFile": "xai-llms.txt",
+			"sha256": "053635dd8d77548df12916e6a09e632d52569dbfd393444e4967cdaf3119f967",
+			"lineCount": 266,
+			"modelReferenceCount": 65,
+			"checkedAt": "2026-10-28T07:37:58.858Z",
+			"lastDiff": {
+				"changed": false,
+				"addedCount": 0,
+				"removedCount": 0,
+				"addedLines": [],
+				"removedLines": []
+			}
+		},
+		"openrouter": {
+			"provider": "openrouter",
+			"name": "OpenRouter",
+			"url": "https://openrouter.ai/llms.txt",
+			"secondaryUrl": "https://openrouter.ai/docs/llms.txt",
+			"cacheFile": "openrouter-llms.txt",
+			"sha256": "d6c1ac5e27f312b31998cbd0849432dafe1da73479fa36040a641e4fdfcf135f",
+			"lineCount": 611,
+			"modelReferenceCount": 28,
+			"checkedAt": "2026-10-28T07:37:59.304Z",
+			"lastDiff": {
+				"changed": false,
+				"addedCount": 0,
+				"removedCount": 0,
+				"addedLines": [],
+				"removedLines": []
+			}
+		}
+	}
+}

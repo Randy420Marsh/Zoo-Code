@@ -2,7 +2,15 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { Tiktoken } from "tiktoken/lite"
 import o200kBase from "tiktoken/encoders/o200k_base"
 
-const TOKEN_FUDGE_FACTOR = 1.5
+/**
+ * Default multiplier applied to tiktoken counts to compensate for the fact that
+ * the o200k_base BPE is not the model's own tokenizer. The local estimate feeds
+ * budgeting decisions (condense chunk packing, auto-condense threshold math,
+ * provider usage fallbacks), so a constant 50% inflation systematically biases
+ * them. Providers whose server reports exact usage set this to 1.0 (via
+ * `tokenFudgeFactor`) to keep their local estimates unbiased.
+ */
+export const DEFAULT_TIKTOKEN_FUDGE_FACTOR = 1.5
 
 let encoder: Tiktoken | null = null
 
@@ -52,7 +60,21 @@ function serializeToolResult(block: Anthropic.Messages.ToolResultBlockParam): st
 	return parts.join("\n")
 }
 
-export async function tiktoken(content: Anthropic.Messages.ContentBlockParam[]): Promise<number> {
+export type TiktokenOptions = {
+	/**
+	 * Multiplier applied to the raw tiktoken count. Defaults to
+	 * {@link DEFAULT_TIKTOKEN_FUDGE_FACTOR}. Pass 1.0 for providers whose
+	 * server reports exact usage, so budgeting estimates (condense chunk
+	 * packing, auto-condense thresholds) are not systematically inflated.
+	 */
+	fudgeFactor?: number
+}
+
+export async function tiktoken(
+	content: Anthropic.Messages.ContentBlockParam[],
+	options?: TiktokenOptions,
+): Promise<number> {
+	const fudgeFactor = options?.fudgeFactor ?? DEFAULT_TIKTOKEN_FUDGE_FACTOR
 	if (content.length === 0) {
 		return 0
 	}
@@ -100,7 +122,9 @@ export async function tiktoken(content: Anthropic.Messages.ContentBlockParam[]):
 		}
 	}
 
-	// Add a fudge factor to account for the fact that tiktoken is not always
-	// accurate.
-	return Math.ceil(totalTokens * TOKEN_FUDGE_FACTOR)
+	// Apply the fudge factor to account for the fact that tiktoken is not
+	// accurate for foreign tokenizers (the encoder is o200k_base, not the
+	// target model's BPE). The result feeds budgeting decisions, so its bias
+	// is a real behavior change, not just an estimate error.
+	return Math.ceil(totalTokens * fudgeFactor)
 }

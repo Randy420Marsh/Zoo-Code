@@ -2588,6 +2588,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			for (const process of this.terminalProcesses.values()) process.continue()
 		} else if (terminalOperation === "abort") {
 			for (const process of this.terminalProcesses.values()) process.abort()
+			// A backgrounded command is removed from terminalProcesses while it
+			// keeps running. The chat X still has to kill that terminal.
+			if (this.taskId) {
+				TerminalRegistry.abortBusyTerminalsForTask(this.taskId)
+			}
 		}
 	}
 
@@ -4868,7 +4873,17 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					(block) => block.type === "tool_use" || block.type === "mcp_tool_use",
 				)
 
-				if (hasTextContent || hasToolUses) {
+				// Reasoning-only response: the model spent its entire output budget
+				// on thinking and produced no text or tool calls (common with
+				// thinking models such as Qwen3 when max_tokens is exhausted during
+				// reasoning). Without handling this, the "no assistant messages"
+				// branch pops the user message and retries with the same oversized
+				// history, reproducing the same empty response in a loop. Instead,
+				// persist a synthetic assistant turn (keeping the history valid) and
+				// let the no-tool-use nudge path steer the model back on track.
+				const reasoningOnly = !hasTextContent && !hasToolUses && reasoningMessage.length > 0
+
+				if (hasTextContent || hasToolUses || reasoningOnly) {
 					// Reset counter when we get a successful response with content
 					this.consecutiveNoAssistantMessagesCount = 0
 					// Display grounding sources to the user if they exist
@@ -4889,6 +4904,16 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						assistantContent.push({
 							type: "text" as const,
 							text: assistantMessage,
+						})
+					} else if (reasoningOnly) {
+						// Reasoning-only turn: persist a short text block so the
+						// assistant message is never empty (an empty assistant
+						// message with a stripped reasoning block would break
+						// providers that require content, e.g. Gemini via
+						// OpenRouter). The nudge below keeps the loop moving.
+						assistantContent.push({
+							type: "text" as const,
+							text: "(Model produced only reasoning this turn.)",
 						})
 					}
 
@@ -5019,7 +5044,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					this.presentAssistantMessageSafe()
 				}
 
-				if (hasTextContent || hasToolUses) {
+				if (hasTextContent || hasToolUses || reasoningOnly) {
 					// NOTE: This comment is here for future reference - this was a
 					// workaround for `userMessageContent` not getting set to true.
 					// It was due to it not recursively calling for partial blocks
@@ -5458,7 +5483,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			// Generate environment details to include in the condensed summary
 			const environmentDetails = await getEnvironmentDetails(this, true)
 
-			// Force aggressive truncation by keeping only 75% of the conversation history
+			// Force aggressive truncation by keeping only 75% of the conversation history.
+			// forceStripImages: the request already overflowed the window, and the image
+			// payloads are the most likely cause — strip them so the condensation call
+			// itself fits (otherwise condense fails with the same overflow and the task
+			// is stuck in a "Failed to condense" loop).
 			const truncateResult = await manageContext({
 				messages: this.apiConversationHistory,
 				totalTokens: contextTokens || 0,
@@ -5467,6 +5496,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				apiHandler: this.api,
 				autoCondenseContext: true,
 				autoCondenseContextPercent: FORCED_CONTEXT_REDUCTION_PERCENT,
+				forceStripImages: true,
 				systemPrompt: await this.getSystemPrompt(state, modelInfo),
 				taskId: this.taskId,
 				profileThresholds,
@@ -6128,7 +6158,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				if (msg.encrypted_content) {
 					cleanConversationHistory.push({
 						type: "reasoning",
-						summary: msg.summary,
+						// Undefined is dropped by JSON.stringify, which is the same 400 as
+						// omitting summary. Default here, not only in the transform.
+						summary: Array.isArray(msg.summary) ? msg.summary : [],
 						encrypted_content: msg.encrypted_content!,
 						...(msg.id ? { id: msg.id } : {}),
 					})

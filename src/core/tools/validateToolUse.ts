@@ -127,8 +127,8 @@ export function isToolAllowedForMode(
 	includedTools?: string[], // Opt-in tools explicitly included (e.g., from modelInfo)
 ): boolean {
 	// Resolve alias to canonical name (e.g., "search_and_replace" → "edit")
-	const resolvedTool = TOOL_ALIASES[tool] ?? tool
-	const resolvedIncludedTools = includedTools?.map((t) => TOOL_ALIASES[t] ?? t)
+	const resolvedTool: string = TOOL_ALIASES[tool] ?? tool
+	const resolvedIncludedTools: string[] | undefined = includedTools?.map((t) => TOOL_ALIASES[t] ?? t)
 
 	// Check tool requirements first — explicit disabling takes priority over everything,
 	// including ALWAYS_AVAILABLE_TOOLS. This ensures disabledTools works consistently
@@ -161,7 +161,10 @@ export function isToolAllowedForMode(
 	const isDynamicMcpTool = tool.startsWith("mcp_")
 
 	if (experiments && Object.values(EXPERIMENT_IDS).includes(tool as ExperimentId)) {
-		if (!experiments[tool]) {
+		const isImageGenAllowedByModelOrMedia =
+			tool === EXPERIMENT_IDS.IMAGE_GENERATION &&
+			(modeSlug === "media" || Boolean(resolvedIncludedTools?.includes("generate_image")))
+		if (!experiments[tool] && !isImageGenAllowedByModelOrMedia) {
 			return false
 		}
 	}
@@ -189,8 +192,15 @@ export function isToolAllowedForMode(
 		const isRegularTool = groupConfig.tools.includes(resolvedTool)
 
 		// Check if the tool is a custom tool that has been explicitly included
+		// (or an edit-family tool when "edit" is included or in media mode)
+		const isEditFamilyTool =
+			(resolvedTool === "edit" || resolvedTool === "edit_file" || resolvedTool === "search_replace") &&
+			(modeSlug === "media" || Boolean(resolvedIncludedTools?.includes("edit")))
 		const isCustomTool =
-			groupConfig.customTools?.includes(resolvedTool) && resolvedIncludedTools?.includes(resolvedTool)
+			groupConfig.customTools?.includes(resolvedTool) &&
+			(Boolean(resolvedIncludedTools?.includes(resolvedTool)) ||
+				isEditFamilyTool ||
+				(resolvedTool === "generate_image" && Boolean(experiments?.[EXPERIMENT_IDS.IMAGE_GENERATION])))
 
 		// If the tool isn't in regular tools and isn't an included custom tool, continue to next group
 		if (!isRegularTool && !isCustomTool) {

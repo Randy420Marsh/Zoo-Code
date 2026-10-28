@@ -1,5 +1,6 @@
 {
 	"errors": {
+		"builtin_not_writable": "La skill \"{{name}}\" è inclusa in Zoo Code e non può essere modificata. Crea una skill con lo stesso nome per sostituirla.",
 		"name_length": "Il nome della skill deve essere di 1-{{maxLength}} caratteri (ricevuti {{length}})",
 		"name_format": "Il nome della skill può contenere solo lettere minuscole, numeri e trattini (senza trattini iniziali o finali, senza trattini consecutivi)",
 		"description_length": "La descrizione della skill deve essere di 1-1024 caratteri (ricevuti {{length}})",

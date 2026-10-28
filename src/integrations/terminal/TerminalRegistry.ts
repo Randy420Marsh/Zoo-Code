@@ -360,6 +360,24 @@ export class TerminalRegistry {
 	}
 
 	/**
+	 * Stops a command that is still running after the agent moved on.
+	 * The chat X button must reach this terminal even when the tool call
+	 * has already dropped its process handle.
+	 */
+	public static abortBusyTerminalsForTask(taskId: string): void {
+		this.terminals.forEach((terminal) => {
+			if (terminal.taskId !== taskId || !terminal.busy) {
+				return
+			}
+			try {
+				terminal.process?.abort()
+			} catch (error) {
+				console.error(`[TerminalRegistry] Error aborting process for terminal ${terminal.id}:`, error)
+			}
+		})
+	}
+
+	/**
 	 * Releases all terminals associated with a task.
 	 *
 	 * @param taskId The task ID

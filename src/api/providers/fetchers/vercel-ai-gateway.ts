@@ -13,13 +13,15 @@ import { throwIfAborted } from "../utils/abort-signal"
  * VercelAiGatewayPricing
  */
 
-const vercelAiGatewayPricingSchema = z.object({
-	input: z.string().optional(), // Image models don't have an input price.
-	output: z.string().optional(), // Embedding and image models don't have an output price.
-	input_cache_write: z.string().optional(),
-	input_cache_read: z.string().optional(),
-	image: z.string().optional(), // Only image models have an image price.
-})
+const vercelAiGatewayPricingSchema = z
+	.object({
+		input: z.string().nullish(), // Image models don't have an input price.
+		output: z.string().nullish(), // Embedding and image models don't have an output price.
+		input_cache_write: z.string().nullish(),
+		input_cache_read: z.string().nullish(),
+		image: z.string().nullish(), // Only image models have an image price.
+	})
+	.nullish()
 
 /**
  * VercelAiGatewayModel
@@ -28,15 +30,15 @@ const vercelAiGatewayPricingSchema = z.object({
 const vercelAiGatewayModelSchema = z.object({
 	id: z.string(),
 	object: z.string(),
-	// Zoo Gateway / Bedrock catalog entries omit these; they are not used for routing.
-	created: z.number().optional(),
+	// Zoo Gateway / Bedrock / non-language catalog entries may omit these fields.
+	created: z.number().nullish(),
 	owned_by: z.string(),
 	name: z.string(),
-	description: z.string().optional(),
-	context_window: z.number(),
-	max_tokens: z.number(),
+	description: z.string().nullish(),
+	context_window: z.number().nullish(),
+	max_tokens: z.number().nullish(),
 	type: z.string(),
-	tags: z.array(z.string()).optional(),
+	tags: z.array(z.string()).nullish(),
 	pricing: vercelAiGatewayPricingSchema,
 })
 
@@ -114,12 +116,12 @@ export const parseVercelAiGatewayModel = ({ id, model }: { id: string; model: Ve
 		: VERCEL_AI_GATEWAY_VISION_ONLY_MODELS.has(id) || VERCEL_AI_GATEWAY_VISION_AND_TOOLS_MODELS.has(id)
 
 	const modelInfo: ModelInfo = {
-		maxTokens: model.max_tokens,
-		contextWindow: model.context_window,
+		maxTokens: model.max_tokens ?? 8192,
+		contextWindow: model.context_window ?? 128_000,
 		supportsImages,
 		supportsPromptCache,
-		inputPrice: parseApiPrice(model.pricing?.input),
-		outputPrice: parseApiPrice(model.pricing?.output),
+		inputPrice: parseApiPrice(model.pricing?.input ?? undefined),
+		outputPrice: parseApiPrice(model.pricing?.output ?? undefined),
 		cacheWritesPrice,
 		cacheReadsPrice,
 		description: model.description ?? model.name,

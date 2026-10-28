@@ -189,6 +189,8 @@ const _dynamicProviderExtras = {
 	[providerIdentifiers.ioIntelligence]: {} as { apiKey?: string },
 	[providerIdentifiers.nanogpt]: {} as { apiKey?: string },
 	[providerIdentifiers.kimiCode]: {} as { apiKey?: string },
+	[providerIdentifiers.xai]: {} as { apiKey?: string; baseUrl?: string },
+	[providerIdentifiers.gemini]: {} as { apiKey?: string; baseUrl?: string },
 } as const satisfies Record<RouterName, object>
 
 // Build the dynamic options union from the map, intersected with CommonFetchParams

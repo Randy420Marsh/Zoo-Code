@@ -446,7 +446,7 @@
 	},
 	"api/providers/xai.ts": {
 		"@typescript-eslint/no-explicit-any": {
-			"count": 7
+			"count": 6
 		}
 	},
 	"api/transform/__tests__/ai-sdk.spec.ts": {
@@ -1052,11 +1052,6 @@
 	"core/webview/__tests__/skillsMessageHandler.spec.ts": {
 		"@typescript-eslint/no-explicit-any": {
 			"count": 1
-		}
-	},
-	"core/webview/__tests__/telemetrySettingsTracking.spec.ts": {
-		"@typescript-eslint/no-explicit-any": {
-			"count": 4
 		}
 	},
 	"core/webview/__tests__/webviewMessageHandler.checkpoint.spec.ts": {

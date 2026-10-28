@@ -59,3 +59,8 @@ qdrant_storage/
 plans/
 
 roo-cli-*.tar.gz*
+
+# Local development & diagnostic notes
+LOCAL_DEVELOPMENT.md
+grok-tests/
+tool-call-diagnostics/

@@ -35,6 +35,13 @@ export abstract class BaseOpenAiCompatibleProvider<ModelName extends string>
 
 	protected readonly options: ApiHandlerOptions
 
+	// OpenAI-compatible servers report exact `prompt_tokens` in the response.
+	// The local tiktoken estimate feeds budgeting decisions (condense chunk
+	// packing, auto-condense threshold math), so it must not carry the 1.5×
+	// fudge — inflating it systematically over-estimates context usage for
+	// these providers.
+	protected override readonly tokenFudgeFactor = 1.0
+
 	protected client: OpenAI
 
 	constructor({

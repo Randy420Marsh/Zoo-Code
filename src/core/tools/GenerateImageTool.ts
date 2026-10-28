@@ -15,6 +15,7 @@ import { getReadablePath } from "../../utils/path"
 import { isPathOutsideWorkspace } from "../../utils/pathUtils"
 import { EXPERIMENT_IDS, experiments } from "../../shared/experiments"
 import { OpenRouterHandler } from "../../api/providers/openrouter"
+import { generateGeminiImage, generateXaiImagineImage } from "../../api/providers/utils/image-generation"
 import { BaseTool, ToolCallbacks } from "./BaseTool"
 import type { ToolUse } from "../../shared/tools"
 import { t } from "../../i18n"
@@ -23,15 +24,27 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 	readonly name = "generate_image" as const
 
 	async execute(params: GenerateImageParams, task: Task, callbacks: ToolCallbacks): Promise<void> {
-		const { prompt, path: relPath, image: inputImagePath } = params
+		const {
+			prompt,
+			path: relPath,
+			image: inputImagePath,
+			model: requestedModel,
+			aspect_ratio: aspectRatio,
+			resolution,
+			quality,
+			width,
+			height,
+		} = params
 		const { handleError, pushToolResult, askApproval } = callbacks
 
 		const provider = task.providerRef.deref()
 		const state = await provider?.getState()
-		const isImageGenerationEnabled = experiments.isEnabled(
-			state?.experiments ?? {},
-			EXPERIMENT_IDS.IMAGE_GENERATION,
-		)
+		const activeModelInfo = task.api?.getModel?.()?.info
+		const expEnabled = experiments.isEnabled(state?.experiments ?? {}, EXPERIMENT_IDS.IMAGE_GENERATION)
+		const isImageGenerationEnabled =
+			expEnabled ||
+			activeModelInfo?.supportsImageGeneration === true ||
+			(state?.mode === "media" && activeModelInfo?.supportsImageGeneration !== false)
 
 		if (!isImageGenerationEnabled) {
 			pushToolResult(
@@ -123,20 +136,31 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 		const isWriteProtected = task.rooProtectedController?.isWriteProtected(relPath) || false
 
 		// Use shared utility for backwards compatibility logic
-		const imageProvider = getImageGenerationProvider(
+		let imageProvider = getImageGenerationProvider(
 			state?.imageGenerationProvider,
 			!!state?.openRouterImageGenerationSelectedModel,
 		)
 
+		const trimmedRequestedModel = requestedModel?.trim() || undefined
+		if (trimmedRequestedModel) {
+			if (trimmedRequestedModel.startsWith("grok-imagine-image")) {
+				imageProvider = providerIdentifiers.xai
+			} else if (trimmedRequestedModel.startsWith("gemini-")) {
+				imageProvider = providerIdentifiers.gemini
+			} else if (trimmedRequestedModel.includes("/")) {
+				imageProvider = providerIdentifiers.openrouter
+			}
+		}
+
 		// Get the selected model
-		let selectedModel = state?.openRouterImageGenerationSelectedModel
+		let selectedModel = trimmedRequestedModel ?? state?.openRouterImageGenerationSelectedModel
 		let modelInfo = undefined
 
 		// Find the model info matching both value AND provider
 		// (since the same model value can exist for multiple providers)
 		if (selectedModel) {
 			modelInfo = IMAGE_GENERATION_MODELS.find((m) => m.value === selectedModel && m.provider === imageProvider)
-			if (!modelInfo) {
+			if (!modelInfo && !trimmedRequestedModel) {
 				// Model doesn't exist for this provider, use first model for selected provider
 				const providerModels = IMAGE_GENERATION_MODELS.filter((m) => m.provider === imageProvider)
 				modelInfo = providerModels[0]
@@ -149,11 +173,85 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 			selectedModel = modelInfo?.value || IMAGE_GENERATION_MODEL_IDS[0]
 		}
 
-		// Validate API key for OpenRouter
-		const openRouterApiKey = state?.openRouterImageApiKey
+		// Resolve API keys in priority order:
+		// 1. Active profile / Experimental Image Generation setting
+		// 2. Saved Zoo-Code provider profiles (for cross-provider local model execution)
+		// 3. Environment variables (XAI_API_KEY, GEMINI_API_KEY / GOOGLE_API_KEY, OPENROUTER_API_KEY)
+		let openRouterApiKey = state?.openRouterImageApiKey || state?.apiConfiguration?.openRouterApiKey
+		let geminiApiKey = state?.apiConfiguration?.geminiApiKey
+		let xaiApiKey = state?.apiConfiguration?.xaiApiKey
+		let geminiBaseUrl = state?.apiConfiguration?.googleGeminiBaseUrl
 
-		if (imageProvider === providerIdentifiers.openrouter && !openRouterApiKey) {
+		if ((!openRouterApiKey || !geminiApiKey || !xaiApiKey) && provider?.providerSettingsManager?.listConfig) {
+			try {
+				const savedConfigs = await provider.providerSettingsManager.listConfig()
+				for (const entry of savedConfigs ?? []) {
+					if (openRouterApiKey && geminiApiKey && xaiApiKey) break
+					const profile = await provider.providerSettingsManager.getProfile(
+						entry.id ? { id: entry.id } : { name: entry.name },
+					)
+					if (!openRouterApiKey && profile.openRouterApiKey) {
+						openRouterApiKey = profile.openRouterApiKey
+					}
+					if (!geminiApiKey && profile.geminiApiKey) {
+						geminiApiKey = profile.geminiApiKey
+						if (!geminiBaseUrl && profile.googleGeminiBaseUrl) {
+							geminiBaseUrl = profile.googleGeminiBaseUrl
+						}
+					}
+					if (!xaiApiKey && profile.xaiApiKey) {
+						xaiApiKey = profile.xaiApiKey
+					}
+				}
+			} catch {
+				// Best-effort profile lookup for cross-provider fallback
+			}
+		}
+
+		if (process.env.NODE_ENV !== "test") {
+			openRouterApiKey = openRouterApiKey || process.env.OPENROUTER_API_KEY
+		}
+		geminiApiKey = geminiApiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY
+		xaiApiKey = xaiApiKey || process.env.XAI_API_KEY
+
+		// Cross-provider fallback for local/other models when no specific model/provider was locked
+		if (
+			!trimmedRequestedModel &&
+			!state?.imageGenerationProvider &&
+			!state?.openRouterImageGenerationSelectedModel &&
+			!openRouterApiKey
+		) {
+			if (xaiApiKey) {
+				imageProvider = providerIdentifiers.xai
+				selectedModel = "grok-imagine-image-2.0"
+			} else if (geminiApiKey) {
+				imageProvider = providerIdentifiers.gemini
+				selectedModel = "gemini-nano-banana-2.1"
+			}
+		}
+
+		const useXaiImagine =
+			imageProvider === providerIdentifiers.xai || selectedModel.startsWith("grok-imagine-image")
+		const useGeminiNative =
+			!useXaiImagine &&
+			(imageProvider === providerIdentifiers.gemini ||
+				modelInfo?.apiMethod === "gemini_generate_content" ||
+				(selectedModel.startsWith("gemini-") && !selectedModel.includes("/")))
+
+		if (
+			!useXaiImagine &&
+			!useGeminiNative &&
+			imageProvider === providerIdentifiers.openrouter &&
+			!openRouterApiKey
+		) {
 			const errorMessage = t("tools:generateImage.openRouterApiKeyRequired")
+			await task.say("error", errorMessage)
+			pushToolResult(formatResponse.toolError(errorMessage))
+			return
+		}
+
+		if (useGeminiNative && !geminiApiKey) {
+			const errorMessage = "Gemini API key is required for Gemini native image generation"
 			await task.say("error", errorMessage)
 			pushToolResult(formatResponse.toolError(errorMessage))
 			return
@@ -173,10 +271,21 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 		try {
 			task.consecutiveMistakeCount = 0
 
+			const sizeConstraints = [
+				aspectRatio ? `aspect_ratio=${aspectRatio}` : undefined,
+				resolution ? `resolution=${resolution}` : undefined,
+				quality ? `quality=${quality}` : undefined,
+				typeof width === "number" ? `width=${width}` : undefined,
+				typeof height === "number" ? `height=${height}` : undefined,
+			].filter((part): part is string => Boolean(part))
+			const promptWithSize =
+				sizeConstraints.length > 0 ? `${prompt}\n\nOutput constraints: ${sizeConstraints.join(", ")}.` : prompt
+
 			const approvalMessage = JSON.stringify({
 				...sharedMessageProps,
-				content: prompt,
+				content: promptWithSize,
 				...(inputImagePath && { inputImage: getReadablePath(task.cwd, inputImagePath) }),
+				...(sizeConstraints.length > 0 && { size: sizeConstraints.join(", ") }),
 			})
 
 			const didApprove = await askApproval("tool", approvalMessage, undefined, isWriteProtected)
@@ -185,13 +294,39 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 				return
 			}
 
-			const openRouterHandler = new OpenRouterHandler({} as any)
-			const result = await openRouterHandler.generateImage(
-				prompt,
-				selectedModel,
-				openRouterApiKey!,
-				inputImageData,
-			)
+			if (useXaiImagine && !xaiApiKey) {
+				const errorMessage = "xAI API key is required for grok-imagine-image generation"
+				await task.say("error", errorMessage)
+				pushToolResult(formatResponse.toolError(errorMessage))
+				return
+			}
+
+			const result = useXaiImagine
+				? await generateXaiImagineImage({
+						apiKey: xaiApiKey!,
+						model: selectedModel,
+						prompt,
+						inputImage: inputImageData,
+						aspectRatio: aspectRatio ?? undefined,
+						resolution: resolution ?? undefined,
+						quality: quality ?? undefined,
+					})
+				: useGeminiNative
+					? await generateGeminiImage({
+							apiKey: geminiApiKey!,
+							baseURL: geminiBaseUrl,
+							model: selectedModel,
+							prompt,
+							inputImage: inputImageData,
+							aspectRatio: aspectRatio ?? undefined,
+							resolution: resolution ?? undefined,
+						})
+					: await new OpenRouterHandler({} as any).generateImage(
+							promptWithSize,
+							selectedModel,
+							openRouterApiKey!,
+							inputImageData,
+						)
 
 			if (!result.success) {
 				await task.say("error", result.error || "Failed to generate image")
@@ -208,7 +343,7 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 				return
 			}
 
-			const base64Match = result.imageData.match(/^data:image\/(png|jpeg|jpg);base64,(.+)$/)
+			const base64Match = result.imageData.match(/^data:image\/(png|jpeg|jpg|webp|gif);base64,(.+)$/)
 			if (!base64Match) {
 				const errorMessage = "Invalid image format received"
 				await task.say("error", errorMessage)
@@ -221,7 +356,7 @@ export class GenerateImageTool extends BaseTool<"generate_image"> {
 			const base64Data = base64Match[2]
 
 			let finalPath = relPath
-			if (!finalPath.match(/\.(png|jpg|jpeg)$/i)) {
+			if (!finalPath.match(/\.(png|jpg|jpeg|webp|gif)$/i)) {
 				finalPath = `${finalPath}.${imageFormat === "jpeg" ? "jpg" : imageFormat}`
 			}
 

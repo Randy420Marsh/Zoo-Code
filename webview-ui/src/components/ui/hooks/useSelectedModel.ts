@@ -134,7 +134,9 @@ export const useSelectedModel = (apiConfiguration?: ProviderSettings) => {
 	// before the selection is resolved.
 	const hasValidRouterData =
 		needRouterModels && dynamicProvider
-			? dynamicProvider === providerIdentifiers.litellm || dynamicProvider === providerIdentifiers.ioIntelligence
+			? dynamicProvider === providerIdentifiers.litellm ||
+				dynamicProvider === providerIdentifiers.ioIntelligence ||
+				dynamicProvider === providerIdentifiers.gemini
 				? !routerModels.isLoading
 				: routerModels.data &&
 					routerModels.data[dynamicProvider] !== undefined &&
@@ -226,6 +228,37 @@ function getSelectedModel({
 					: openRouterModelProviders[specificProvider]
 			}
 
+			if (
+				info &&
+				(apiConfiguration.openRouterAllowImageInput === false ||
+					apiConfiguration.openRouterAllowVideoInput === false ||
+					apiConfiguration.openRouterAllowAudioInput === false ||
+					apiConfiguration.openRouterAllowImageGeneration !== undefined ||
+					apiConfiguration.openRouterAllowVideoGeneration !== undefined ||
+					apiConfiguration.openRouterAllowAudioGeneration !== undefined)
+			) {
+				info = {
+					...info,
+					supportsImages: apiConfiguration.openRouterAllowImageInput === false ? false : info.supportsImages,
+					supportsVideoInput:
+						apiConfiguration.openRouterAllowVideoInput === false ? false : info.supportsVideoInput,
+					supportsAudioInput:
+						apiConfiguration.openRouterAllowAudioInput === false ? false : info.supportsAudioInput,
+					supportsImageGeneration:
+						apiConfiguration.openRouterAllowImageGeneration !== undefined
+							? apiConfiguration.openRouterAllowImageGeneration === true
+							: info.supportsImageGeneration,
+					supportsVideoGeneration:
+						apiConfiguration.openRouterAllowVideoGeneration !== undefined
+							? apiConfiguration.openRouterAllowVideoGeneration === true
+							: info.supportsVideoGeneration,
+					supportsAudioGeneration:
+						apiConfiguration.openRouterAllowAudioGeneration !== undefined
+							? apiConfiguration.openRouterAllowAudioGeneration === true
+							: info.supportsAudioGeneration,
+				}
+			}
+
 			return { id, info }
 		}
 		case providerIdentifiers.requesty: {
@@ -264,9 +297,38 @@ function getSelectedModel({
 			return { id, info: routerInfo ?? litellmDefaultModelInfo }
 		}
 		case providerIdentifiers.xai: {
-			const id = apiConfiguration.apiModelId ?? defaultModelId
-			const info = xaiModels[id as keyof typeof xaiModels]
-			return info ? { id, info } : { id, info: undefined }
+			const live = routerModels[providerIdentifiers.xai]
+			const availableModels: ModelRecord = live ? { ...xaiModels, ...live } : { ...xaiModels }
+			// Keep the configured id even when it is only present on the live catalog
+			// (or unknown offline). Never coerce to the default — that hid image support.
+			const id = apiConfiguration.apiModelId?.trim() || defaultModelId
+			const baseInfo = availableModels[id]
+			// Mirror XAIHandler.getModel(): an unset xaiAllow* toggle leaves the
+			// catalog flag untouched, so previously working configurations keep
+			// working; an explicit toggle overrides the catalog flag.
+			const info: ModelInfo | undefined = baseInfo
+				? {
+						...baseInfo,
+						supportsImages: apiConfiguration.xaiAllowImageInput === false ? false : baseInfo.supportsImages,
+						supportsVideoInput:
+							apiConfiguration.xaiAllowVideoInput === false ? false : baseInfo.supportsVideoInput,
+						supportsAudioInput:
+							apiConfiguration.xaiAllowAudioInput === false ? false : baseInfo.supportsAudioInput,
+						supportsImageGeneration:
+							apiConfiguration.xaiAllowImageGeneration !== undefined
+								? apiConfiguration.xaiAllowImageGeneration === true
+								: baseInfo.supportsImageGeneration,
+						supportsVideoGeneration:
+							apiConfiguration.xaiAllowVideoGeneration !== undefined
+								? apiConfiguration.xaiAllowVideoGeneration === true
+								: baseInfo.supportsVideoGeneration,
+						supportsAudioGeneration:
+							apiConfiguration.xaiAllowAudioGeneration !== undefined
+								? apiConfiguration.xaiAllowAudioGeneration === true
+								: baseInfo.supportsAudioGeneration,
+					}
+				: undefined
+			return { id, info }
 		}
 		case providerIdentifiers.baseten:
 			return getStaticCatalogModel(apiConfiguration.apiModelId, basetenModels, defaultModelId)
@@ -353,8 +415,43 @@ function getSelectedModel({
 			return { id, info: baseInfo }
 		}
 		case providerIdentifiers.gemini: {
-			const id = apiConfiguration.apiModelId ?? defaultModelId
-			const info = geminiModels[id as keyof typeof geminiModels]
+			const live = routerModels[providerIdentifiers.gemini]
+			const availableModels: ModelRecord = live ? { ...geminiModels, ...live } : { ...geminiModels }
+			const id = apiConfiguration.apiModelId?.trim() || defaultModelId
+			const baseInfo = availableModels[id]
+			if (!baseInfo) {
+				return { id, info: undefined }
+			}
+			const hasModalityOverride =
+				apiConfiguration.geminiAllowImageInput === false ||
+				apiConfiguration.geminiAllowVideoInput === false ||
+				apiConfiguration.geminiAllowAudioInput === false ||
+				apiConfiguration.geminiAllowImageGeneration !== undefined ||
+				apiConfiguration.geminiAllowVideoGeneration !== undefined ||
+				apiConfiguration.geminiAllowAudioGeneration !== undefined
+			const info: ModelInfo = hasModalityOverride
+				? {
+						...baseInfo,
+						supportsImages:
+							apiConfiguration.geminiAllowImageInput === false ? false : baseInfo.supportsImages,
+						supportsVideoInput:
+							apiConfiguration.geminiAllowVideoInput === false ? false : baseInfo.supportsVideoInput,
+						supportsAudioInput:
+							apiConfiguration.geminiAllowAudioInput === false ? false : baseInfo.supportsAudioInput,
+						supportsImageGeneration:
+							apiConfiguration.geminiAllowImageGeneration !== undefined
+								? apiConfiguration.geminiAllowImageGeneration === true
+								: baseInfo.supportsImageGeneration,
+						supportsVideoGeneration:
+							apiConfiguration.geminiAllowVideoGeneration !== undefined
+								? apiConfiguration.geminiAllowVideoGeneration === true
+								: baseInfo.supportsVideoGeneration,
+						supportsAudioGeneration:
+							apiConfiguration.geminiAllowAudioGeneration !== undefined
+								? apiConfiguration.geminiAllowAudioGeneration === true
+								: baseInfo.supportsAudioGeneration,
+					}
+				: baseInfo
 			return { id, info }
 		}
 		case providerIdentifiers.deepseek: {

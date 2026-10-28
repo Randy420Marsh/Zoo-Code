@@ -8,6 +8,10 @@
 		"title": "Ativar servidores MCP",
 		"description": "Ative para que o Zoo possa usar ferramentas de servidores MCP conectados. Isso dá mais capacidades ao Zoo. Se você não pretende usar essas ferramentas extras, desative para ajudar a reduzir os custos de tokens da API."
 	},
+	"enableServerCreation": {
+		"title": "Ativar criação de servidores MCP",
+		"description": "Quando ativado, o Zoo pode ajudar você a criar novos servidores MCP por meio de comandos como \"adicione uma nova ferramenta a...\". Se você não precisa criar servidores MCP, pode desativar isso para reduzir o uso de tokens do Zoo."
+	},
 	"editGlobalMCP": "Editar MCP global",
 	"editProjectMCP": "Editar MCP do projeto",
 	"learnMoreEditingSettings": "Saiba mais sobre como editar arquivos de configuração MCP",

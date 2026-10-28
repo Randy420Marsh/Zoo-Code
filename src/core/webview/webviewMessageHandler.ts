@@ -10,7 +10,6 @@ import {
 	type Language,
 	type GlobalState,
 	type ClineMessage,
-	type TelemetrySetting,
 	type ModelRecord,
 	type ProviderSettings,
 	type Command as SlashCommand,
@@ -26,10 +25,10 @@ import {
 	retiredProviderIdentifiers,
 	LmStudioModelsMessageType,
 	OllamaModelsMessageType,
+	OpenAiCompatibleServerInfoMessageType,
 	OpenAiModelsMessageType,
 	RouterModelsMessageType,
 	VsCodeLmModelsMessageType,
-	isTelemetryOptedIn,
 } from "@roo-code/types"
 import { customToolRegistry } from "@roo-code/core"
 import { CloudService } from "@roo-code/cloud"
@@ -79,6 +78,7 @@ import { playTts, setTtsEnabled, setTtsSpeed, stopTts } from "../../utils/tts"
 import { searchCommits } from "../../utils/git"
 import { exportSettings, importSettingsWithFeedback } from "../config/importExport"
 import { getOpenAiModels } from "../../api/providers/openai"
+import { getOpenAiCompatibleServerInfo } from "../../api/providers/fetchers/openai-compatible-props"
 import { getVsCodeLmModels } from "../../api/providers/vscode-lm"
 import { getGitHubCopilotViewState } from "../../services/language-models/copilotViewState"
 import {
@@ -102,15 +102,6 @@ import { getCommand } from "../../utils/commands"
 import { getLMStudioModels } from "../../api/providers/fetchers/lmstudio"
 
 const ALLOWED_VSCODE_SETTINGS = new Set(["terminal.integrated.inheritEnv"])
-
-// Serializes handling of "telemetrySetting" messages. Each invocation reads the previous
-// setting, awaits a persistence write, then applies the new live telemetry state -- with no
-// serialization, two rapid messages (e.g. a fast toggle) can interleave across those awaits:
-// each invocation captures its own isOptedIn in a closure, so whichever invocation's tail end
-// (TelemetryService.instance.updateTelemetryState) happens to resolve *last* wins, regardless
-// of which message the user sent last. Chaining onto this promise ensures a given invocation's
-// entire read-write-apply sequence completes before the next one starts.
-let telemetrySettingQueue: Promise<void> = Promise.resolve()
 
 import { MarketplaceManager, MarketplaceItemType } from "../../services/marketplace"
 import { setPendingTodoList } from "../tools/UpdateTodoListTool"
@@ -666,39 +657,11 @@ export const webviewMessageHandler = async (
 					),
 				)
 
-			// Telemetry is on by disclosed default: "unset" (no choice made yet) leaves that
-			// default in effect, same as "enabled". Only an explicit "disabled" opts out.
-			// vscode.env.isTelemetryEnabled is ANDed in (matching extension.ts's
-			// onDidChangeTelemetryEnabled listener) so a webview reload can't re-enable
-			// telemetry while VS Code's global toggle is off.
-			//
-			// Read the setting synchronously via getGlobalState (same as the "telemetrySetting"
-			// handler below) rather than awaiting provider.getStateToPostToWebview() -- that
-			// async gap let this continuation resolve after a concurrent "telemetrySetting"
-			// message's queued update and clobber it with a stale value, the same interleaving
-			// class of bug telemetrySettingQueue exists to prevent. Routing through the queue
-			// here too means webviewDidLaunch can't race a concurrent telemetrySetting message
-			// either.
-			telemetrySettingQueue = telemetrySettingQueue
-				.catch(() => undefined)
-				.then(async () => {
-					if (!TelemetryService.hasInstance()) {
-						return
-					}
-
-					const telemetrySetting = getGlobalState("telemetrySetting") || "unset"
-					TelemetryService.instance.updateTelemetryState(
-						isTelemetryOptedIn(telemetrySetting) && vscode.env.isTelemetryEnabled,
-					)
-				})
-
-			await telemetrySettingQueue.catch((error) =>
-				provider.log(
-					`Error initializing telemetry state on launch: ${error instanceof Error ? error.message : String(error)}`,
-				),
-			)
-
 			provider.isViewLaunched = true
+			break
+		case "webviewHeartbeat":
+			// Timestamp-only update for the dead-renderer watchdog; no other side effects.
+			provider.updateWebviewHeartbeat()
 			break
 		case "newTask":
 			// Initializing new instance of Cline will make sure that any
@@ -756,6 +719,8 @@ export const webviewMessageHandler = async (
 						)
 					}
 				}
+
+				let rediscoverSkills = false
 
 				for (const [key, value] of Object.entries(message.updatedSettings)) {
 					let newValue = value
@@ -852,6 +817,15 @@ export const webviewMessageHandler = async (
 						if (mcpHub) {
 							await mcpHub.handleMcpEnabledChange(newValue as boolean)
 						}
+
+						// The built-in create-mcp-server skill is withdrawn when MCP is
+						// off entirely, so the skill list has to be rebuilt here too.
+						rediscoverSkills = true
+					} else if (key === "enableMcpServerCreation") {
+						newValue = value ?? true
+						// The built-in skill is gated at discovery time, so the skill list
+						// has to be rebuilt - but only once the new value is persisted below.
+						rediscoverSkills = true
 					} else if (key === "experiments") {
 						if (!value) {
 							continue
@@ -868,6 +842,10 @@ export const webviewMessageHandler = async (
 					}
 
 					await provider.contextProxy.setValue(key as keyof RooCodeSettings, newValue)
+				}
+
+				if (rediscoverSkills) {
+					await provider.getSkillsManager()?.discoverSkills()
 				}
 
 				await provider.postStateToWebview()
@@ -1158,6 +1136,8 @@ export const webviewMessageHandler = async (
 						[providerIdentifiers.ioIntelligence]: {},
 						[providerIdentifiers.nanogpt]: {},
 						[providerIdentifiers.kimiCode]: {},
+						[providerIdentifiers.xai]: {},
+						[providerIdentifiers.gemini]: {},
 					}
 
 			const safeGetModels = async (options: GetModelsOptions, handler: ApiHandler): Promise<ModelRecord> => {
@@ -1292,6 +1272,52 @@ export const webviewMessageHandler = async (
 						provider: providerIdentifiers.moonshot,
 						apiKey: moonshotApiKey,
 						baseUrl: moonshotBaseUrl,
+					},
+				})
+			}
+
+			// xAI is conditional on apiKey — live catalog from GET /v1/models
+			const xaiApiKey = message?.values?.xaiApiKey ?? apiConfiguration.xaiApiKey
+			if (xaiApiKey) {
+				if (message?.values?.xaiApiKey) {
+					await flushModels(
+						{ provider: providerIdentifiers.xai, apiKey: xaiApiKey },
+						handlerFor(apiConfiguration, providerIdentifiers.xai),
+						true,
+					)
+				}
+
+				candidates.push({
+					key: providerIdentifiers.xai,
+					options: {
+						provider: providerIdentifiers.xai,
+						apiKey: xaiApiKey,
+					},
+				})
+			}
+
+			// Gemini is conditional on apiKey — live catalog from GET /v1beta/models
+			const geminiApiKey = message?.values?.geminiApiKey ?? apiConfiguration.geminiApiKey
+			const googleGeminiBaseUrl = message?.values?.googleGeminiBaseUrl ?? apiConfiguration.googleGeminiBaseUrl
+			if (geminiApiKey) {
+				if (message?.values?.geminiApiKey || message?.values?.googleGeminiBaseUrl) {
+					await flushModels(
+						{
+							provider: providerIdentifiers.gemini,
+							apiKey: geminiApiKey,
+							baseUrl: googleGeminiBaseUrl,
+						},
+						handlerFor(apiConfiguration, providerIdentifiers.gemini),
+						true,
+					)
+				}
+
+				candidates.push({
+					key: providerIdentifiers.gemini,
+					options: {
+						provider: providerIdentifiers.gemini,
+						apiKey: geminiApiKey,
+						baseUrl: googleGeminiBaseUrl,
 					},
 				})
 			}
@@ -1537,6 +1563,24 @@ export const webviewMessageHandler = async (
 			}
 
 			break
+		case OpenAiCompatibleServerInfoMessageType.requestOpenAiCompatibleServerInfo: {
+			// Prefer the values from the settings form so a URL the user is still editing
+			// is probed, falling back to the saved profile for callers outside settings.
+			const { apiConfiguration: openAiCompatibleConfig } = await provider.getState()
+			const baseUrl = message?.values?.baseUrl ?? openAiCompatibleConfig.openAiBaseUrl
+			const apiKey = message?.values?.apiKey ?? openAiCompatibleConfig.openAiApiKey
+			const openAiHeaders = message?.values?.openAiHeaders ?? openAiCompatibleConfig.openAiHeaders
+
+			const openAiCompatibleServerInfo = await getOpenAiCompatibleServerInfo(baseUrl, apiKey, openAiHeaders)
+
+			// Always answer so the webview can leave its loading state, even when the
+			// endpoint has no `/props` to report.
+			await provider.postMessageToWebview({
+				type: OpenAiCompatibleServerInfoMessageType.openAiCompatibleServerInfo,
+				openAiCompatibleServerInfo,
+			})
+			break
+		}
 		case VsCodeLmModelsMessageType.githubCopilotSignIn:
 		case VsCodeLmModelsMessageType.githubCopilotReconnect: {
 			// Plain sign-in and Reconnect run as separate attempts, so an older one can finish after a newer one.
@@ -2817,7 +2861,9 @@ export const webviewMessageHandler = async (
 					// Import the mode with the specified source level
 					const result = await provider.customModesManager.importModeWithRules(
 						yamlContent,
-						message.source || "project", // Default to project if not specified
+						// Modes import into a writable source only; "built-in" is a
+						// skills-only value and never reaches this message.
+						message.source && message.source !== "built-in" ? message.source : "project",
 					)
 
 					if (result.success) {
@@ -2880,49 +2926,6 @@ export const webviewMessageHandler = async (
 				})
 			}
 			break
-		case "telemetrySetting": {
-			// Chain onto the shared queue so a concurrent "telemetrySetting" message (e.g. a
-			// rapid toggle) can't interleave its read-write-apply sequence with this one -- see
-			// the telemetrySettingQueue comment above for why that matters. Swallow a prior
-			// link's rejection before chaining (rather than letting .then() propagate it) so one
-			// failed update can't permanently poison every subsequent telemetrySetting message
-			// for the rest of the session.
-			const thisUpdate = telemetrySettingQueue
-				.catch(() => undefined)
-				.then(async () => {
-					const telemetrySetting = message.text as TelemetrySetting
-					const previousSetting = getGlobalState("telemetrySetting") || "unset"
-					const isOptedIn = isTelemetryOptedIn(telemetrySetting)
-					const wasPreviouslyOptedIn = isTelemetryOptedIn(previousSetting)
-
-					// If turning telemetry OFF, fire event BEFORE disabling
-					if (wasPreviouslyOptedIn && !isOptedIn && TelemetryService.hasInstance()) {
-						TelemetryService.instance.captureTelemetrySettingsChanged(previousSetting, telemetrySetting)
-					}
-
-					// Update the telemetry state. vscode.env.isTelemetryEnabled is ANDed in
-					// (matching extension.ts's onDidChangeTelemetryEnabled listener) so this can't
-					// re-enable telemetry while VS Code's global toggle is off -- the
-					// captureTelemetrySettingsChanged calls above/below still track the user's
-					// stored preference transition on its own, independent of that live toggle.
-					await updateGlobalState("telemetrySetting", telemetrySetting)
-
-					if (TelemetryService.hasInstance()) {
-						TelemetryService.instance.updateTelemetryState(isOptedIn && vscode.env.isTelemetryEnabled)
-					}
-
-					// If turning telemetry ON, fire event AFTER enabling
-					if (!wasPreviouslyOptedIn && isOptedIn && TelemetryService.hasInstance()) {
-						TelemetryService.instance.captureTelemetrySettingsChanged(previousSetting, telemetrySetting)
-					}
-
-					await provider.postStateToWebview()
-				})
-			telemetrySettingQueue = thisUpdate
-
-			await thisUpdate
-			break
-		}
 		case "debugSetting": {
 			await vscode.workspace
 				.getConfiguration(Package.name)

@@ -84,11 +84,50 @@ describe("XAIHandler", () => {
 		expect(model.info).toEqual(xaiModels[testModelId])
 	})
 
-	it("should return default model for an unknown model id", () => {
-		const handlerWithModel = new XAIHandler({ apiModelId: "grok-build-0.1-not-a-model" })
+	it("preserves an unknown model id instead of silently falling back", () => {
+		// Previously unknown ids were rewritten to xaiDefaultModelId (e.g. grok-4.5),
+		// so selecting grok-4.7 before it was in the static map still billed as 4.5.
+		const unknownId = "grok-4.7-custom-profile"
+		const handlerWithModel = new XAIHandler({ apiModelId: unknownId })
 		const model = handlerWithModel.getModel()
-		expect(model.id).toBe(xaiDefaultModelId)
-		expect(model.info).toEqual(xaiModels[xaiDefaultModelId])
+		expect(model.id).toBe(unknownId)
+		expect(model.info.supportsImages).toBe(false)
+		expect(model.info.inputPrice).toBeUndefined()
+		expect(model.info.description).toContain(unknownId)
+	})
+
+	it("returns grok-4.7 with image + reasoning metadata from the static catalog", () => {
+		const handlerWithModel = new XAIHandler({ apiModelId: "grok-4.7" })
+		const model = handlerWithModel.getModel()
+		expect(model.id).toBe("grok-4.7")
+		expect(model.info).toEqual(xaiModels["grok-4.7"])
+		expect(model.info.supportsImages).toBe(true)
+		expect(model.info.supportsReasoningEffort).toEqual(["low", "medium", "high", "xhigh"])
+	})
+
+	it("leaves catalog modality flags untouched when xaiAllow* toggles are unset", () => {
+		const model = new XAIHandler({ apiModelId: "grok-4.7" }).getModel()
+		expect(model.info).toEqual(xaiModels["grok-4.7"])
+	})
+
+	it("clears image input when xaiAllowImageInput is explicitly false", () => {
+		const model = new XAIHandler({ apiModelId: "grok-4.7", xaiAllowImageInput: false }).getModel()
+		expect(model.info.supportsImages).toBe(false)
+	})
+
+	it("keeps catalog image support when xaiAllowImageInput is explicitly true", () => {
+		const model = new XAIHandler({ apiModelId: "grok-4.7", xaiAllowImageInput: true }).getModel()
+		expect(model.info.supportsImages).toBe(true)
+	})
+
+	it("gates generation flags behind explicit xaiAllow*Generation toggles", () => {
+		// Static grok-4.7 does not report image generation, so an explicit true
+		// must enable it and an explicit false must disable it.
+		const off = new XAIHandler({ apiModelId: "grok-4.7", xaiAllowImageGeneration: false }).getModel()
+		expect(off.info.supportsImageGeneration).toBe(false)
+
+		const on = new XAIHandler({ apiModelId: "grok-4.7", xaiAllowImageGeneration: true }).getModel()
+		expect(on.info.supportsImageGeneration).toBe(true)
 	})
 
 	it("should use Responses API (client.responses.create)", async () => {
@@ -105,7 +144,9 @@ describe("XAIHandler", () => {
 				store: false,
 				include: ["reasoning.encrypted_content"],
 			}),
-			undefined,
+			expect.objectContaining({
+				headers: expect.objectContaining({ "x-grok-conv-id": expect.any(String) }),
+			}),
 		)
 	})
 
@@ -235,7 +276,9 @@ describe("XAIHandler", () => {
 				tool_choice: "auto",
 				parallel_tool_calls: true,
 			}),
-			undefined,
+			expect.objectContaining({
+				headers: expect.objectContaining({ "x-grok-conv-id": expect.any(String) }),
+			}),
 		)
 	})
 
@@ -264,7 +307,9 @@ describe("XAIHandler", () => {
 			expect.objectContaining({
 				parallel_tool_calls: false,
 			}),
-			undefined,
+			expect.objectContaining({
+				headers: expect.objectContaining({ "x-grok-conv-id": expect.any(String) }),
+			}),
 		)
 	})
 
@@ -279,7 +324,9 @@ describe("XAIHandler", () => {
 				max_output_tokens: 65_536,
 				temperature: 0,
 			}),
-			undefined,
+			expect.objectContaining({
+				headers: expect.objectContaining({ "x-grok-conv-id": expect.any(String) }),
+			}),
 		)
 	})
 
@@ -346,9 +393,13 @@ describe("XAIHandler", () => {
 		mockResponsesCreate.mockResolvedValueOnce({ output_text: "response" })
 
 		await handler.completePrompt("test prompt", { abortSignal: controller.signal })
-		expect(mockResponsesCreate).toHaveBeenCalledWith(expect.objectContaining({ model: expect.any(String) }), {
-			signal: controller.signal,
-		})
+		expect(mockResponsesCreate).toHaveBeenCalledWith(
+			expect.objectContaining({ model: expect.any(String) }),
+			expect.objectContaining({
+				signal: controller.signal,
+				headers: expect.objectContaining({ "x-grok-conv-id": expect.any(String) }),
+			}),
+		)
 	})
 
 	it("completePrompt should work without options (backward compatible)", async () => {
@@ -358,7 +409,9 @@ describe("XAIHandler", () => {
 		expect(result).toBe("response")
 		expect(mockResponsesCreate).toHaveBeenCalledWith(
 			expect.objectContaining({ model: expect.any(String) }),
-			undefined,
+			expect.objectContaining({
+				headers: expect.objectContaining({ "x-grok-conv-id": expect.any(String) }),
+			}),
 		)
 	})
 
@@ -368,13 +421,150 @@ describe("XAIHandler", () => {
 		await handler.completePrompt("test prompt")
 
 		expect(mockResponsesCreate).toHaveBeenCalledWith(
-			{
+			expect.objectContaining({
 				model: xaiDefaultModelId,
 				input: [{ role: "user", content: [{ type: "input_text", text: "test prompt" }] }],
 				store: false,
-			},
-			undefined,
+			}),
+			expect.objectContaining({
+				headers: expect.objectContaining({ "x-grok-conv-id": expect.any(String) }),
+			}),
 		)
+	})
+
+	it("createMessage should set prompt_cache_key to taskId when available", async () => {
+		mockResponsesCreate.mockResolvedValueOnce(asyncStreamFrom([]))
+
+		const stream = handler.createMessage("test prompt", [], { taskId: "my-task-123" })
+		await stream.next()
+
+		const callArgs = mockResponsesCreate.mock.calls[mockResponsesCreate.mock.calls.length - 1][0]
+		expect(callArgs.prompt_cache_key).toBe("my-task-123")
+	})
+
+	it("createMessage should fall back to a stable handler-level id when no taskId", async () => {
+		mockResponsesCreate.mockResolvedValueOnce(asyncStreamFrom([]))
+		mockResponsesCreate.mockResolvedValueOnce(asyncStreamFrom([]))
+
+		// First call without taskId
+		const stream1 = handler.createMessage("test prompt", [])
+		await stream1.next()
+		const key1 = mockResponsesCreate.mock.calls[0][0].prompt_cache_key
+		expect(typeof key1).toBe("string")
+		expect(key1.length).toBeGreaterThan(0)
+
+		// Second call on the same handler should reuse the same fallback id
+		const stream2 = handler.createMessage("another prompt", [])
+		await stream2.next()
+		const key2 = mockResponsesCreate.mock.calls[1][0].prompt_cache_key
+		expect(key2).toBe(key1)
+	})
+
+	it("createMessage should default to streaming", async () => {
+		mockResponsesCreate.mockResolvedValueOnce(asyncStreamFrom([]))
+
+		const stream = handler.createMessage("test prompt", [])
+		await stream.next()
+
+		const callArgs = mockResponsesCreate.mock.calls[mockResponsesCreate.mock.calls.length - 1][0]
+		expect(callArgs.stream).toBe(true)
+	})
+
+	it("createMessage should send stream: false and yield converted chunks when xaiStreaming is false", async () => {
+		const nonStreamingHandler = new XAIHandler({ xaiStreaming: false })
+		mockResponsesCreate.mockResolvedValueOnce({
+			output: [
+				{
+					type: "reasoning",
+					id: "rs_1",
+					encrypted_content: "enc-1",
+					summary: [{ type: "summary_text", text: "thinking..." }],
+				},
+				{
+					type: "message",
+					role: "assistant",
+					content: [{ type: "output_text", text: "hello world" }],
+				},
+				{
+					type: "function_call",
+					call_id: "call_1",
+					name: "get_weather",
+					arguments: '{"city":"Berlin"}',
+				},
+			],
+			usage: { input_tokens: 10, output_tokens: 5, output_tokens_details: { reasoning_tokens: 2 } },
+		})
+
+		const chunks = await collectStream(nonStreamingHandler.createMessage("system", []))
+
+		const callArgs = mockResponsesCreate.mock.calls[mockResponsesCreate.mock.calls.length - 1][0]
+		expect(callArgs.stream).toBe(false)
+
+		expect(chunks).toEqual([
+			{ type: "reasoning", text: "thinking..." },
+			{ type: "text", text: "hello world" },
+			{ type: "tool_call", id: "call_1", name: "get_weather", arguments: '{"city":"Berlin"}' },
+			{
+				type: "usage",
+				inputTokens: 10,
+				outputTokens: 5,
+				cacheWriteTokens: 0,
+				cacheReadTokens: 0,
+				reasoningTokens: 2,
+			},
+		])
+	})
+
+	it("createMessage should expose encrypted reasoning via getEncryptedContent after a stream", async () => {
+		expect(handler.getEncryptedContent()).toBeUndefined()
+
+		mockResponsesCreate.mockResolvedValueOnce(
+			asyncStreamFrom([
+				{
+					type: "response.completed",
+					response: {
+						output: [{ type: "reasoning", id: "rs_9", encrypted_content: "enc-9" }],
+						usage: { input_tokens: 1, output_tokens: 1 },
+					},
+				},
+			]),
+		)
+
+		const stream = handler.createMessage("system", [])
+		await collectStream(stream)
+
+		expect(handler.getEncryptedContent()).toEqual({ encrypted_content: "enc-9", id: "rs_9" })
+	})
+
+	it("getEncryptedContent keeps the provider summary and does not copy content: null", async () => {
+		const summary = [{ type: "summary_text", text: "kept" }]
+		mockResponsesCreate.mockResolvedValueOnce(
+			asyncStreamFrom([
+				{
+					type: "response.completed",
+					response: {
+						output: [
+							{
+								type: "reasoning",
+								id: "rs_9",
+								encrypted_content: "enc-9",
+								summary,
+								content: null,
+								status: "completed",
+							},
+						],
+					},
+				},
+			]),
+		)
+
+		await collectStream(handler.createMessage("system", []))
+
+		expect(handler.getEncryptedContent()).toEqual({
+			encrypted_content: "enc-9",
+			id: "rs_9",
+			summary,
+		})
 	})
 
 	it("completePrompt should pass timeout through to client", async () => {
@@ -382,10 +572,14 @@ describe("XAIHandler", () => {
 		mockResponsesCreate.mockResolvedValueOnce({ output_text: "response" })
 
 		await handler.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 5000 })
-		expect(mockResponsesCreate).toHaveBeenCalledWith(expect.objectContaining({ model: expect.any(String) }), {
-			signal: controller.signal,
-			timeout: 5000,
-		})
+		expect(mockResponsesCreate).toHaveBeenCalledWith(
+			expect.objectContaining({ model: expect.any(String) }),
+			expect.objectContaining({
+				signal: controller.signal,
+				timeout: 5000,
+				headers: expect.objectContaining({ "x-grok-conv-id": expect.any(String) }),
+			}),
+		)
 	})
 
 	it.each([
@@ -400,9 +594,13 @@ describe("XAIHandler", () => {
 			mockResponsesCreate.mockResolvedValueOnce({ output_text: "response" })
 
 			await handler.completePrompt("test prompt", { timeoutMs: input })
-			expect(mockResponsesCreate).toHaveBeenCalledWith(expect.objectContaining({ model: expect.any(String) }), {
-				timeout: forwarded,
-			})
+			expect(mockResponsesCreate).toHaveBeenCalledWith(
+				expect.objectContaining({ model: expect.any(String) }),
+				expect.objectContaining({
+					timeout: forwarded,
+					headers: expect.objectContaining({ "x-grok-conv-id": expect.any(String) }),
+				}),
+			)
 		},
 	)
 
@@ -416,8 +614,11 @@ describe("XAIHandler", () => {
 			await handler.completePrompt("test prompt", { timeoutMs })
 			expect(mockResponsesCreate).toHaveBeenCalledWith(
 				expect.objectContaining({ model: expect.any(String) }),
-				undefined,
+				expect.objectContaining({
+					headers: expect.objectContaining({ "x-grok-conv-id": expect.any(String) }),
+				}),
 			)
+			expect(mockResponsesCreate.mock.calls.at(-1)?.[1]).not.toHaveProperty("timeout")
 		},
 	)
 
@@ -438,7 +639,9 @@ describe("XAIHandler", () => {
 					effort: "high",
 				}),
 			}),
-			undefined,
+			expect.objectContaining({
+				headers: expect.objectContaining({ "x-grok-conv-id": expect.any(String) }),
+			}),
 		)
 	})
 
@@ -459,7 +662,9 @@ describe("XAIHandler", () => {
 					effort: "high",
 				}),
 			}),
-			undefined,
+			expect.objectContaining({
+				headers: expect.objectContaining({ "x-grok-conv-id": expect.any(String) }),
+			}),
 		)
 	})
 
@@ -481,7 +686,9 @@ describe("XAIHandler", () => {
 					effort: "low",
 				}),
 			}),
-			undefined,
+			expect.objectContaining({
+				headers: expect.objectContaining({ "x-grok-conv-id": expect.any(String) }),
+			}),
 		)
 	})
 

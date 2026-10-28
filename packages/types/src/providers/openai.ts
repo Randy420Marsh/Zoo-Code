@@ -1,6 +1,11 @@
 import { z } from "zod"
 
-import type { ModelInfo } from "../model.js"
+import {
+	type ModelInfo,
+	type ReasoningEffortExtended,
+	reasoningEffortExtendedSchema,
+	reasoningEffortsExtended,
+} from "../model.js"
 
 // https://openai.com/api/pricing/
 export const openAiModelsMessageTypes = ["requestOpenAiModels", "openAiModels"] as const
@@ -10,6 +15,70 @@ export const openAiModelsMessageTypeSchema = z.enum(openAiModelsMessageTypes)
 export const OpenAiModelsMessageType = openAiModelsMessageTypeSchema.enum
 
 export type OpenAiModelsMessageType = z.infer<typeof openAiModelsMessageTypeSchema>
+
+export const openAiCompatibleServerInfoMessageTypes = [
+	"requestOpenAiCompatibleServerInfo",
+	"openAiCompatibleServerInfo",
+] as const
+
+export const openAiCompatibleServerInfoMessageTypeSchema = z.enum(openAiCompatibleServerInfoMessageTypes)
+
+export const OpenAiCompatibleServerInfoMessageType = openAiCompatibleServerInfoMessageTypeSchema.enum
+
+export type OpenAiCompatibleServerInfoMessageType = z.infer<typeof openAiCompatibleServerInfoMessageTypeSchema>
+
+/**
+ * What an OpenAI-compatible endpoint reports about its own chat template.
+ *
+ * llama.cpp serves this on `/props`; endpoints that don't expose it report nothing and
+ * every consumer keeps its defaults.
+ */
+export const openAiCompatibleServerInfoSchema = z.object({
+	/** Effort levels the template accepts, when they can be read off it. */
+	reasoningEfforts: z.array(reasoningEffortExtendedSchema).optional(),
+	/** The level the template falls back to when no `reasoning_effort` is sent. */
+	defaultReasoningEffort: reasoningEffortExtendedSchema.optional(),
+	/** The template branches on `enable_thinking`, so thinking can be switched off outright. */
+	supportsEnableThinking: z.boolean(),
+	/** The server forwards `reasoning_effort` into the template. */
+	supportsReasoningEffort: z.boolean(),
+})
+
+export type OpenAiCompatibleServerInfo = z.infer<typeof openAiCompatibleServerInfoSchema>
+
+/**
+ * The effort an endpoint with a known ladder will actually accept.
+ *
+ * A level can sit outside the template's ladder - it was stored before the endpoint
+ * was probed, or carried over from another provider - and llama.cpp raises on an
+ * unexpected `reasoning_effort` rather than ignoring it. Prefer the template's own
+ * default, then the closest level below the one asked for, so the request still goes
+ * out at something the server understands.
+ *
+ * Shared so the chat selector shows the level the request will really carry.
+ */
+export const resolveReasoningEffortForServer = (
+	effort: ReasoningEffortExtended | undefined,
+	serverInfo?: OpenAiCompatibleServerInfo | null,
+): ReasoningEffortExtended | undefined => {
+	const ladder = serverInfo?.reasoningEfforts
+
+	if (!effort || !ladder?.length || ladder.includes(effort)) {
+		return effort
+	}
+
+	const fallback = serverInfo?.defaultReasoningEffort
+
+	if (fallback && ladder.includes(fallback)) {
+		return fallback
+	}
+
+	const rank = (level: ReasoningEffortExtended) => reasoningEffortsExtended.indexOf(level)
+
+	// Step down rather than up: a level the user did not ask for should not cost more
+	// than the one they did.
+	return [...ladder].reverse().find((level) => rank(level) < rank(effort)) ?? ladder[0]
+}
 
 export type OpenAiNativeModelId = keyof typeof openAiNativeModels
 

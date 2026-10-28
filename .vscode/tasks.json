@@ -39,7 +39,7 @@
 		{
 			"label": "watch:bundle",
 			"type": "shell",
-			"command": "npx turbo watch:bundle",
+			"command": "node scripts/turbo.mjs watch:bundle",
 			"group": "build",
 			"problemMatcher": {
 				"owner": "esbuild",
@@ -61,7 +61,7 @@
 		{
 			"label": "watch:tsc",
 			"type": "shell",
-			"command": "npx turbo watch:tsc",
+			"command": "node scripts/turbo.mjs watch:tsc",
 			"group": "build",
 			"problemMatcher": "$tsc-watch",
 			"isBackground": true,

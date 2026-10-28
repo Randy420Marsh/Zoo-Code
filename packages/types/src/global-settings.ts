@@ -129,7 +129,9 @@ export const globalSettingsSchema = z.object({
 	dismissedUpsells: z.array(z.string()).optional(),
 
 	// Image generation settings (experimental) - flattened for simplicity
-	imageGenerationProvider: z.enum([providerIdentifiers.openrouter]).optional(),
+	imageGenerationProvider: z
+		.enum([providerIdentifiers.openrouter, providerIdentifiers.xai, providerIdentifiers.gemini])
+		.optional(),
 	openRouterImageApiKey: z.string().optional(),
 	openRouterImageGenerationSelectedModel: z.string().optional(),
 
@@ -265,6 +267,12 @@ export const globalSettingsSchema = z.object({
 	telemetrySetting: telemetrySettingsSchema.optional(),
 
 	mcpEnabled: z.boolean().optional(),
+	/**
+	 * Whether the built-in `create-mcp-server` skill is offered to the model.
+	 * Off removes only the authoring instructions; the tools for operating
+	 * already-connected servers are governed by `mcpEnabled` and stay available.
+	 */
+	enableMcpServerCreation: z.boolean().optional(),
 
 	mode: z.string().optional(),
 	modeApiConfigs: z.record(z.string(), z.string()).optional(),

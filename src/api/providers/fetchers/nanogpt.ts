@@ -9,28 +9,30 @@ const nanoGptReasoningEfforts: NonNullable<ModelInfo["supportsReasoningEffort"]>
 const nanoGptReasoningEffortSchema = z.enum(["none", "minimal", "low", "medium", "high", "xhigh", "max"])
 const nanoGptAstraModelIds = new Set(["openai/gpt-6-astra", "openai/gpt-6-astra-pro"])
 
-const nanoGptPricingSchema = z.object({
-	prompt: z.number().nonnegative().optional(),
-	completion: z.number().nonnegative().optional(),
-	cacheReadInputPer1kTokens: z.number().nonnegative().optional(),
-	cacheWriteInputPer1kTokens: z.number().nonnegative().optional(),
-})
+const nanoGptPricingSchema = z
+	.object({
+		prompt: z.number().nonnegative().nullish(),
+		completion: z.number().nonnegative().nullish(),
+		cacheReadInputPer1kTokens: z.number().nonnegative().nullish(),
+		cacheWriteInputPer1kTokens: z.number().nonnegative().nullish(),
+	})
+	.nullish()
 
 const nanoGptModelSchema = z.object({
 	id: z.string().min(1),
-	name: z.string().optional(),
-	description: z.string().optional(),
-	context_length: z.number().positive().nullish(),
-	max_output_tokens: z.number().positive().nullish(),
-	reasoning_efforts: z.array(nanoGptReasoningEffortSchema).optional(),
+	name: z.string().nullish(),
+	description: z.string().nullish(),
+	context_length: z.number().nonnegative().nullish(),
+	max_output_tokens: z.number().nonnegative().nullish(),
+	reasoning_efforts: z.array(nanoGptReasoningEffortSchema).nullish(),
 	capabilities: z
 		.object({
-			vision: z.boolean().optional(),
-			tool_calling: z.boolean().optional(),
-			reasoning: z.boolean().optional(),
+			vision: z.boolean().nullish(),
+			tool_calling: z.boolean().nullish(),
+			reasoning: z.boolean().nullish(),
 		})
-		.optional(),
-	pricing: nanoGptPricingSchema.optional(),
+		.nullish(),
+	pricing: nanoGptPricingSchema,
 })
 
 export type NanoGptModel = z.infer<typeof nanoGptModelSchema>
@@ -45,25 +47,29 @@ const nanoGptModelsResponseSchema = z.object({
 })
 
 export const parseNanoGptModel = (model: NanoGptModel): ModelInfo => ({
-	contextWindow: model.context_length ?? nanoGptDefaultModelInfo.contextWindow,
-	maxTokens: model.max_output_tokens ?? nanoGptDefaultModelInfo.maxTokens,
+	contextWindow:
+		model.context_length && model.context_length > 0 ? model.context_length : nanoGptDefaultModelInfo.contextWindow,
+	maxTokens:
+		model.max_output_tokens && model.max_output_tokens > 0
+			? model.max_output_tokens
+			: nanoGptDefaultModelInfo.maxTokens,
 	supportsPromptCache: false,
-	...(model.capabilities?.vision !== undefined ? { supportsImages: model.capabilities.vision } : {}),
-	...(model.capabilities?.reasoning !== undefined
+	...(model.capabilities?.vision != null ? { supportsImages: model.capabilities.vision } : {}),
+	...(model.capabilities?.reasoning != null
 		? {
 				supportsReasoningEffort: model.capabilities.reasoning
 					? (model.reasoning_efforts ?? [...nanoGptReasoningEfforts])
 					: false,
 			}
 		: {}),
-	...(model.name !== undefined ? { displayName: model.name } : {}),
-	...(model.description !== undefined ? { description: model.description } : {}),
-	...(model.pricing?.prompt !== undefined ? { inputPrice: model.pricing.prompt } : {}),
-	...(model.pricing?.completion !== undefined ? { outputPrice: model.pricing.completion } : {}),
-	...(model.pricing?.cacheReadInputPer1kTokens !== undefined
+	...(model.name != null ? { displayName: model.name } : {}),
+	...(model.description != null ? { description: model.description } : {}),
+	...(model.pricing?.prompt != null ? { inputPrice: model.pricing.prompt } : {}),
+	...(model.pricing?.completion != null ? { outputPrice: model.pricing.completion } : {}),
+	...(model.pricing?.cacheReadInputPer1kTokens != null
 		? { cacheReadsPrice: model.pricing.cacheReadInputPer1kTokens * 1_000 }
 		: {}),
-	...(model.pricing?.cacheWriteInputPer1kTokens !== undefined
+	...(model.pricing?.cacheWriteInputPer1kTokens != null
 		? { cacheWritesPrice: model.pricing.cacheWriteInputPer1kTokens * 1_000 }
 		: {}),
 	...(nanoGptAstraModelIds.has(model.id)

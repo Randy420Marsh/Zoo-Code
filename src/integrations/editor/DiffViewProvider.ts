@@ -1023,6 +1023,17 @@ export class DiffViewProvider {
 				this.revealDiffLine(this.resolveLiveEditor(editor), targetLine)
 			}
 		}, 100)
+
+		// Opening the diff (vscode.diff) moves keyboard focus to the editor. If the
+		// user was typing in the chat box while the LLM was writing the file, their
+		// next keystroke would land in the diff pane. Once the diff has settled on
+		// the first change, hand focus back to the chat input so the user can keep
+		// typing the next instruction.
+		setTimeout(() => {
+			if (this.isEditing) {
+				void this.taskRef.deref()?.providerRef.deref()?.focusChatInput?.()
+			}
+		}, 150)
 	}
 
 	// The TextEditor reference captured when the diff opened can be a stale,

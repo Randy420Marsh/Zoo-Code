@@ -32,7 +32,10 @@
 		"ink": "^6.6.0",
 		"p-wait-for": "^5.0.2",
 		"react": "^19.1.0",
-		"zustand": "^5.0.14"
+		"zustand": "^5.0.14",
+		"@trpc/client": "^11.18.0",
+		"execa": "^9.5.2",
+		"superjson": "^2.2.6"
 	},
 	"devDependencies": {
 		"@roo-code/config-eslint": "workspace:^",
@@ -45,6 +48,7 @@
 		"rimraf": "6.0.1",
 		"tsup": "8.5.1",
 		"tsx": "4.23.15",
-		"vitest": "catalog:"
+		"vitest": "catalog:",
+		"@trpc/server": "^11.18.0"
 	}
 }

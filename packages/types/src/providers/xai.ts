@@ -1,12 +1,18 @@
 import type { ModelInfo } from "../model.js"
 
-// https://docs.x.ai/docs/api-reference
+// https://docs.x.ai/developers/models
+// https://docs.x.ai/developers/pricing
 export type XAIModelId = keyof typeof xaiModels
 
-export const xaiDefaultModelId: XAIModelId = "grok-4.5"
+export const xaiDefaultModelId: XAIModelId = "grok-4.7"
+
+const xaiTooling: { includedTools: string[]; excludedTools: string[] } = {
+	includedTools: ["search_replace"],
+	excludedTools: ["apply_diff"],
+}
 
 export const xaiModels = {
-	"grok-4.5": {
+	"grok-4.7": {
 		maxTokens: 65_536,
 		contextWindow: 500_000,
 		supportsImages: true,
@@ -16,24 +22,103 @@ export const xaiModels = {
 		cacheWritesPrice: 0.5,
 		cacheReadsPrice: 0.5,
 		description:
-			"xAI's flagship Grok 4.5 model with 500K context, configurable reasoning (low/medium/high), and agentic tool calling via Responses API.",
-		supportsReasoningEffort: ["low", "medium", "high"],
+			"xAI flagship Grok 4.7 (500K context): text + image input, configurable reasoning (low/medium/high/xhigh), agentic tool calling via Responses API.",
+		supportsReasoningEffort: ["low", "medium", "high", "xhigh"],
 		reasoningEffort: "high",
-		includedTools: ["search_replace"],
-		excludedTools: ["apply_diff"],
+		...xaiTooling,
 	},
-	"grok-4.20": {
+	"grok-4.6": {
 		maxTokens: 65_536,
-		contextWindow: 2_000_000,
+		contextWindow: 500_000,
 		supportsImages: true,
 		supportsPromptCache: true,
 		inputPrice: 2.0,
 		outputPrice: 6.0,
 		cacheWritesPrice: 0.5,
 		cacheReadsPrice: 0.5,
-		description: "xAI's flagship Grok 4.20 model with 2M context and reasoning support via Responses API.",
-		includedTools: ["search_replace"],
-		excludedTools: ["apply_diff"],
+		description:
+			"xAI Grok 4.6 (500K context): text + image input, configurable reasoning (low/medium/high/xhigh), agentic tool calling via Responses API.",
+		supportsReasoningEffort: ["low", "medium", "high", "xhigh"],
+		reasoningEffort: "high",
+		...xaiTooling,
+	},
+	"grok-4.5": {
+		maxTokens: 65_536,
+		contextWindow: 500_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 2.0,
+		outputPrice: 6.0,
+		cacheWritesPrice: 0.3,
+		cacheReadsPrice: 0.3,
+		description:
+			"xAI Grok 4.5 (500K context): text + image input, configurable reasoning (low/medium/high), agentic tool calling via Responses API.",
+		supportsReasoningEffort: ["low", "medium", "high"],
+		reasoningEffort: "high",
+		...xaiTooling,
+	},
+	"grok-4.3": {
+		maxTokens: 65_536,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.25,
+		outputPrice: 2.5,
+		cacheWritesPrice: 0.2,
+		cacheReadsPrice: 0.2,
+		description: "xAI Grok 4.3 (1M context): text + image input via Responses API.",
+		...xaiTooling,
+	},
+	"grok-4.20": {
+		// Alias kept for existing profiles; maps to the current 4.20 family pricing/context.
+		maxTokens: 65_536,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.25,
+		outputPrice: 2.5,
+		cacheWritesPrice: 0.2,
+		cacheReadsPrice: 0.2,
+		description: "xAI Grok 4.20 family (1M context): text + image input via Responses API.",
+		...xaiTooling,
+	},
+	"grok-4.20-0309-reasoning": {
+		maxTokens: 65_536,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.25,
+		outputPrice: 2.5,
+		cacheWritesPrice: 0.2,
+		cacheReadsPrice: 0.2,
+		description: "xAI Grok 4.20 0309 reasoning (1M context).",
+		supportsReasoningEffort: ["low", "medium", "high"],
+		reasoningEffort: "high",
+		...xaiTooling,
+	},
+	"grok-4.20-0309-non-reasoning": {
+		maxTokens: 65_536,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.25,
+		outputPrice: 2.5,
+		cacheWritesPrice: 0.2,
+		cacheReadsPrice: 0.2,
+		description: "xAI Grok 4.20 0309 non-reasoning (1M context).",
+		...xaiTooling,
+	},
+	"grok-4.20-multi-agent-0309": {
+		maxTokens: 65_536,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.25,
+		outputPrice: 2.5,
+		cacheWritesPrice: 0.2,
+		cacheReadsPrice: 0.2,
+		description: "xAI Grok 4.20 multi-agent 0309 (1M context).",
+		...xaiTooling,
 	},
 	"grok-code-fast-1": {
 		maxTokens: 16_384,
@@ -44,9 +129,9 @@ export const xaiModels = {
 		outputPrice: 1.5,
 		cacheWritesPrice: 0.02,
 		cacheReadsPrice: 0.02,
-		description: "xAI's Grok Code Fast model with 256K context window",
-		includedTools: ["search_replace"],
-		excludedTools: ["apply_diff"],
+		description:
+			"xAI Grok Code Fast (256K). Prefer grok-build-0.1; grok-code-fast-1 is routed there after the May 2026 retirement window.",
+		...xaiTooling,
 	},
 	"grok-build-0.1": {
 		maxTokens: 65_536,
@@ -57,9 +142,8 @@ export const xaiModels = {
 		outputPrice: 2.0,
 		cacheWritesPrice: 0.2,
 		cacheReadsPrice: 0.2,
-		description: "xAI's Grok Build 0.1 agentic coding model with 256K context window",
-		includedTools: ["search_replace"],
-		excludedTools: ["apply_diff"],
+		description: "xAI Grok Build 0.1 agentic coding model (256K context).",
+		...xaiTooling,
 	},
 	"grok-4-1-fast-reasoning": {
 		maxTokens: 65_536,
@@ -70,10 +154,8 @@ export const xaiModels = {
 		outputPrice: 0.5,
 		cacheWritesPrice: 0.05,
 		cacheReadsPrice: 0.05,
-		description:
-			"xAI's Grok 4.1 Fast model with 2M context window, optimized for high-performance agentic tool calling with reasoning",
-		includedTools: ["search_replace"],
-		excludedTools: ["apply_diff"],
+		description: "xAI Grok 4.1 Fast with reasoning (2M context).",
+		...xaiTooling,
 	},
 	"grok-4-1-fast-non-reasoning": {
 		maxTokens: 65_536,
@@ -84,10 +166,8 @@ export const xaiModels = {
 		outputPrice: 0.5,
 		cacheWritesPrice: 0.05,
 		cacheReadsPrice: 0.05,
-		description:
-			"xAI's Grok 4.1 Fast model with 2M context window, optimized for high-performance agentic tool calling",
-		includedTools: ["search_replace"],
-		excludedTools: ["apply_diff"],
+		description: "xAI Grok 4.1 Fast without reasoning (2M context).",
+		...xaiTooling,
 	},
 	"grok-4-fast-reasoning": {
 		maxTokens: 65_536,
@@ -98,10 +178,8 @@ export const xaiModels = {
 		outputPrice: 0.5,
 		cacheWritesPrice: 0.05,
 		cacheReadsPrice: 0.05,
-		description:
-			"xAI's Grok 4 Fast model with 2M context window, optimized for high-performance agentic tool calling with reasoning",
-		includedTools: ["search_replace"],
-		excludedTools: ["apply_diff"],
+		description: "xAI Grok 4 Fast with reasoning (2M context).",
+		...xaiTooling,
 	},
 	"grok-4-fast-non-reasoning": {
 		maxTokens: 65_536,
@@ -112,10 +190,8 @@ export const xaiModels = {
 		outputPrice: 0.5,
 		cacheWritesPrice: 0.05,
 		cacheReadsPrice: 0.05,
-		description:
-			"xAI's Grok 4 Fast model with 2M context window, optimized for high-performance agentic tool calling",
-		includedTools: ["search_replace"],
-		excludedTools: ["apply_diff"],
+		description: "xAI Grok 4 Fast without reasoning (2M context).",
+		...xaiTooling,
 	},
 	"grok-4-0709": {
 		maxTokens: 8192,
@@ -126,9 +202,8 @@ export const xaiModels = {
 		outputPrice: 15.0,
 		cacheWritesPrice: 0.75,
 		cacheReadsPrice: 0.75,
-		description: "xAI's Grok-4 model with 256K context window",
-		includedTools: ["search_replace"],
-		excludedTools: ["apply_diff"],
+		description: "xAI Grok-4 (256K context).",
+		...xaiTooling,
 	},
 	"grok-3-mini": {
 		maxTokens: 8192,
@@ -139,11 +214,10 @@ export const xaiModels = {
 		outputPrice: 0.5,
 		cacheWritesPrice: 0.07,
 		cacheReadsPrice: 0.07,
-		description: "xAI's Grok-3 mini model with 128K context window",
+		description: "xAI Grok-3 mini (128K context).",
 		supportsReasoningEffort: ["low", "high"],
 		reasoningEffort: "low",
-		includedTools: ["search_replace"],
-		excludedTools: ["apply_diff"],
+		...xaiTooling,
 	},
 	"grok-3": {
 		maxTokens: 8192,
@@ -154,8 +228,7 @@ export const xaiModels = {
 		outputPrice: 15.0,
 		cacheWritesPrice: 0.75,
 		cacheReadsPrice: 0.75,
-		description: "xAI's Grok-3 model with 128K context window",
-		includedTools: ["search_replace"],
-		excludedTools: ["apply_diff"],
+		description: "xAI Grok-3 (128K context).",
+		...xaiTooling,
 	},
 } as const satisfies Record<string, ModelInfo>

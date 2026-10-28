@@ -155,6 +155,7 @@ vi.mock("../../../utils/fs", () => ({
 
 // Import Task AFTER all vi.mock() calls - Vitest hoists mocks so this works
 import { Task } from "../Task"
+import type { ApiMessage } from "../../task-persistence/apiMessages"
 import { providerIdentifiers } from "@roo-code/types/provider-identifiers"
 
 describe("Task reasoning preservation", () => {
@@ -511,6 +512,28 @@ describe("Task reasoning preservation", () => {
 			type: "text",
 			text: assistantText,
 		})
+	})
+
+	it("defaults a missing summary on a standalone encrypted reasoning item to []", () => {
+		const task = new Task({
+			provider: mockProvider as ClineProvider,
+			apiConfiguration: mockApiConfiguration,
+			task: "Test task",
+			startTask: false,
+		})
+		const requestModelInfo: ModelInfo = {
+			contextWindow: 16000,
+			supportsPromptCache: true,
+		}
+		const standalone = {
+			type: "reasoning",
+			encrypted_content: "blob",
+			id: "rs_1",
+		} as ApiMessage
+
+		const history = task["buildCleanConversationHistory"]([standalone], requestModelInfo)
+
+		expect(history).toEqual([{ type: "reasoning", encrypted_content: "blob", id: "rs_1", summary: [] }])
 	})
 
 	it("should keep plain text reasoning in buildCleanConversationHistory when preserveReasoning is true", async () => {

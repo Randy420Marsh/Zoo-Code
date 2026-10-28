@@ -531,4 +531,70 @@ describe("convertAnthropicMessageToGemini", () => {
 			},
 		])
 	})
+
+	it("groups multiple functionResponse parts contiguously when separated by inlineData or text", () => {
+		const toolIdToName = new Map<string, string>([
+			["call-1", "read_file"],
+			["call-2", "list_files"],
+		])
+
+		const anthropicMessage: Anthropic.Messages.MessageParam = {
+			role: "user",
+			content: [
+				{
+					type: "tool_result",
+					tool_use_id: "call-1",
+					content: [
+						{ type: "text", text: "image read" },
+						{
+							type: "image",
+							source: {
+								type: "base64",
+								media_type: "image/png",
+								data: "imgdata",
+							},
+						},
+					],
+				},
+				{
+					type: "tool_result",
+					tool_use_id: "call-2",
+					content: "listed files",
+				},
+			],
+		}
+
+		const result = convertAnthropicMessageToGemini(anthropicMessage, { toolIdToName })
+
+		expect(result).toHaveLength(1)
+		const parts = result[0]?.parts ?? []
+		expect(parts[0]?.functionResponse?.name).toBe("read_file")
+		expect(parts[1]?.functionResponse?.name).toBe("list_files")
+		expect(parts[2]?.inlineData?.data).toBe("imgdata")
+	})
+
+	it("attaches thoughtSignature to the last text part when no functionCall parts exist", () => {
+		const anthropicMessage: Anthropic.Messages.MessageParam = {
+			role: "assistant",
+			content: [
+				{ type: "text", text: "First part" },
+				{ type: "text", text: "Final part" },
+				{
+					type: "thoughtSignature",
+					thoughtSignature: "sig-text-only",
+				} as unknown as Anthropic.Messages.ContentBlockParam,
+			],
+		}
+
+		const result = convertAnthropicMessageToGemini(anthropicMessage, {
+			includeThoughtSignatures: true,
+		})
+
+		expect(result).toEqual([
+			{
+				role: "model",
+				parts: [{ text: "First part" }, { text: "Final part", thoughtSignature: "sig-text-only" }],
+			},
+		])
+	})
 })

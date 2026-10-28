@@ -1,5 +1,6 @@
 {
 	"errors": {
+		"builtin_not_writable": "Vaardigheid \"{{name}}\" wordt met Zoo Code meegeleverd en kan niet worden gewijzigd. Maak een vaardigheid met dezelfde naam om deze te overschrijven.",
 		"name_length": "Vaardigheidsnaam moet 1-{{maxLength}} tekens lang zijn ({{length}} ontvangen)",
 		"name_format": "Vaardigheidsnaam mag alleen kleine letters, cijfers en koppeltekens bevatten (geen voorloop- of achterloop-koppeltekens, geen opeenvolgende koppeltekens)",
 		"description_length": "Vaardigheidsbeschrijving moet 1-1024 tekens lang zijn ({{length}} ontvangen)",

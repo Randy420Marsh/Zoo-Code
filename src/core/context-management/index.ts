@@ -271,6 +271,14 @@ export type ContextManagementOptions = {
 	 * (contextWindow - reserved output) instead of the full window. Others leave it undefined.
 	 */
 	useAvailableInputForContextPercent?: boolean
+	/**
+	 * When true, force-strip ALL image blocks before the condensation call.
+	 * Used by the context-window-exceeded recovery path: if the request already
+	 * overflowed, the image payloads are what made it too large, so they must be
+	 * removed for the condense call itself to fit (otherwise condense fails with
+	 * the same overflow and the task is stuck).
+	 */
+	forceStripImages?: boolean
 }
 
 export type ContextManagementResult = SummarizeResponse & {
@@ -305,6 +313,7 @@ export async function manageContext({
 	cwd,
 	rooIgnoreController,
 	useAvailableInputForContextPercent,
+	forceStripImages,
 }: ContextManagementOptions): Promise<ContextManagementResult> {
 	let error: string | undefined
 	let errorDetails: string | undefined
@@ -362,6 +371,7 @@ export async function manageContext({
 				systemPrompt,
 				taskId,
 				isAutomaticTrigger: true,
+				forceStripImages,
 				customCondensingPrompt,
 				metadata,
 				environmentDetails,

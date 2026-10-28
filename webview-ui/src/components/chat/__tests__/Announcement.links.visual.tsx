@@ -28,23 +28,15 @@ test("announcement links open exactly once through the extension host", async ({
 
 	// The dialog portals outside the mount wrapper, so scope to the page.
 	await page.getByRole("link", { name: "GitHub" }).click()
-	await page.getByRole("link", { name: "X", exact: true }).click()
-	await page.getByRole("link", { name: "Discord" }).click()
-	await page.getByRole("link", { name: "Reddit" }).click()
 
 	// The modal overlay blocks the control link behind it; close the dialog
 	// (which also exercises hideAnnouncement) before clicking it.
 	await page.keyboard.press("Escape")
 	await page.locator("#control-link").click()
 
-	// Exactly one host message per link, in render order.
+	// Exactly one host message for the only link (GitHub); no social links render.
 	const hostMessages = (await getCapturedVscodeMessages(page)).filter((message) => message.type === "openExternal")
-	expect(hostMessages).toEqual([
-		{ type: "openExternal", url: "https://github.com/Zoo-Code-Org/Zoo-Code" },
-		{ type: "openExternal", url: "https://x.com/ZooCodeDev" },
-		{ type: "openExternal", url: "https://discord.gg/VxfP4Vx3gX" },
-		{ type: "openExternal", url: "https://www.reddit.com/r/ZooCode/" },
-	])
+	expect(hostMessages).toEqual([{ type: "openExternal", url: "https://github.com/Randy420Marsh/Zoo-Code" }])
 
 	// Only the control anchor reaches VS Code's click interception.
 	const interceptedLinks = await page.evaluate(

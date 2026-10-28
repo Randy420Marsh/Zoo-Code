@@ -8,6 +8,10 @@
 		"title": "MCP-servers inschakelen",
 		"description": "Indien ingeschakeld, kan Zoo communiceren met MCP-servers voor geavanceerde functionaliteit. Gebruik je geen MCP, dan kun je dit uitschakelen om het tokengebruik te verminderen."
 	},
+	"enableServerCreation": {
+		"title": "MCP-servercreatie inschakelen",
+		"description": "Indien ingeschakeld kan Zoo je helpen nieuwe MCP-servers te maken via opdrachten als \"voeg een nieuwe tool toe aan...\". Hoef je geen MCP-servers te maken, dan kun je dit uitschakelen om het tokengebruik van Zoo te verminderen."
+	},
 	"editGlobalMCP": "Globale MCP bewerken",
 	"editProjectMCP": "Project-MCP bewerken",
 	"learnMoreEditingSettings": "Meer over het bewerken van MCP-instellingen",

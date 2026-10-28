@@ -104,6 +104,13 @@ export const modelInfoSchema = z.object({
 	maxThinkingTokens: z.number().nullish(),
 	contextWindow: z.number(),
 	supportsImages: z.boolean().optional(),
+	// Cached from the provider catalog refresh. Unset means not reported.
+	// Generation and non-image input stay off in the UI unless the user enables the matching toggle.
+	supportsVideoInput: z.boolean().optional(),
+	supportsAudioInput: z.boolean().optional(),
+	supportsImageGeneration: z.boolean().optional(),
+	supportsVideoGeneration: z.boolean().optional(),
+	supportsAudioGeneration: z.boolean().optional(),
 	// Whether the model accepts tool (function) calls, as its host reports it. Only hosts that
 	// report this set it; unset means "not reported", not "unsupported".
 	supportsToolCalling: z.boolean().optional(),

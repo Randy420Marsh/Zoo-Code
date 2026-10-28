@@ -1,3 +1,4 @@
+import { TerminalRegistry } from "../../../integrations/terminal/TerminalRegistry"
 import { Task } from "../Task"
 
 function buildTask() {
@@ -35,4 +36,15 @@ describe("Task.handleTerminalOperation", () => {
 			await expect(buildTask().handleTerminalOperation(operation)).resolves.toBeUndefined()
 		},
 	)
+
+	it("aborts a backgrounded terminal that is no longer in the tool-call map", async () => {
+		const abortBusy = vi.spyOn(TerminalRegistry, "abortBusyTerminalsForTask").mockImplementation(() => {})
+		const task = buildTask()
+		Object.assign(task, { taskId: "task-backgrounded" })
+
+		await task.handleTerminalOperation("abort")
+
+		expect(abortBusy).toHaveBeenCalledWith("task-backgrounded")
+		abortBusy.mockRestore()
+	})
 })

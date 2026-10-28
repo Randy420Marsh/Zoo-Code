@@ -57,7 +57,6 @@
 			"label": "Обнаружили уязвимость?",
 			"link": "Следуйте нашему процессу раскрытия"
 		},
-		"community": "Хотите получить советы или просто пообщаться с другими пользователями Zoo Code? Присоединяйтесь к <redditLink>reddit.com/r/ZooCode</redditLink> или <discordLink>discord.gg/VxfP4Vx3gX</discordLink>",
 		"contactAndCommunity": "Контакты и Сообщество",
 		"manageSettings": "Управление Настройками",
 		"debugMode": {

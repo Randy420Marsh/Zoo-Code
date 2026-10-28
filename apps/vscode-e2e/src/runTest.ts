@@ -6,6 +6,7 @@ import { readFileSync } from "fs"
 import { downloadAndUnzipVSCode, runTests } from "@vscode/test-electron"
 import { LLMock } from "@copilotkit/aimock"
 
+import { PRIVACY_LAUNCH_ARGS } from "./privacyLaunchArgs"
 import { addApplyDiffResultFixtures } from "./fixtures/apply-diff"
 import { addDeepSeekV4Fixtures } from "./fixtures/deepseek-v4"
 import { addExecuteCommandResultFixtures } from "./fixtures/execute-command"
@@ -212,7 +213,7 @@ async function main() {
 			await runTests({
 				extensionDevelopmentPath,
 				extensionTestsPath,
-				launchArgs: [testWorkspace],
+				launchArgs: [testWorkspace, ...PRIVACY_LAUNCH_ARGS],
 				extensionTestsEnv,
 				version: vscodeVersion,
 			})

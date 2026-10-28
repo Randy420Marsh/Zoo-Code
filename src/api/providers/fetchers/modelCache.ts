@@ -20,6 +20,11 @@ import { mergeAbortSignals, throwIfAborted } from "../utils/abort-signal"
 import { GetModelsOptions } from "../../../shared/api"
 
 import type { ApiHandler } from "../../index"
+import {
+	checkAndCacheProviderLlms,
+	PROVIDER_LLMS_GROUND_TRUTH,
+	type LlmsGroundTruthProvider,
+} from "./providerLlmsCache"
 
 const memoryCache = new NodeCache({ stdTTL: 5 * 60, checkperiod: 5 * 60 })
 
@@ -505,6 +510,13 @@ export async function initializeModelCacheRefresh(buildHandler: (provider: Route
 				options: { provider: providerIdentifiers.ioIntelligence },
 			},
 		]
+
+		// Check remote llms.txt ground-of-truth files (gemini, xai, openrouter) and cache line diffs
+		for (const llmsProvider of Object.keys(PROVIDER_LLMS_GROUND_TRUTH) as LlmsGroundTruthProvider[]) {
+			checkAndCacheProviderLlms(llmsProvider).catch(() => {
+				// Silent fail - local baseline/cache remains available
+			})
+		}
 
 		// Refresh each provider in background (fire and forget)
 		for (const { provider, options } of publicProviders) {

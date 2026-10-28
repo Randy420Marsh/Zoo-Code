@@ -250,6 +250,28 @@ describe("getCapabilitiesSection", () => {
 		)
 		expect(result).toContain("MCP servers")
 	})
+
+	it("emits image, video, and audio generation instructions only when toggled on in policy", () => {
+		const allOff = getCapabilitiesSection(policyFor(["read", "edit", "command"]))
+		expect(allOff).not.toContain("generate_image tool")
+		expect(allOff).not.toContain("Video generation and editing is enabled")
+		expect(allOff).not.toContain("Audio and speech generation is enabled")
+
+		const allOn = getCapabilitiesSection(
+			policyFor(["read", "edit", "command"], {
+				modelInfo: {
+					contextWindow: 128_000,
+					supportsPromptCache: true,
+					supportsImageGeneration: true,
+					supportsVideoGeneration: true,
+					supportsAudioGeneration: true,
+				},
+			}),
+		)
+		expect(allOn).toContain("You can use the generate_image tool to generate or edit images")
+		expect(allOn).toContain("Video generation and editing is enabled for this session")
+		expect(allOn).toContain("Audio and speech generation is enabled for this session")
+	})
 })
 
 describe("getRulesSection", () => {

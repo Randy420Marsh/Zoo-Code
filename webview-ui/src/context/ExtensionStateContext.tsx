@@ -8,7 +8,6 @@ import {
 	type ModeConfig,
 	type ExperimentId,
 	type TodoItem,
-	type TelemetrySetting,
 	type OrganizationAllowList,
 	type CloudOrganizationMembership,
 	type ExtensionMessage,
@@ -100,6 +99,8 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setTerminalOutputPreviewSize: (value: "small" | "medium" | "large") => void
 	mcpEnabled: boolean
 	setMcpEnabled: (value: boolean) => void
+	enableMcpServerCreation: boolean
+	setEnableMcpServerCreation: (value: boolean) => void
 	taskSyncEnabled: boolean
 	setTaskSyncEnabled: (value: boolean) => void
 	setCurrentApiConfigName: (value: string) => void
@@ -117,14 +118,12 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setMaxOpenTabsContext: (value: number) => void
 	maxWorkspaceFiles: number
 	setMaxWorkspaceFiles: (value: number) => void
-	setTelemetrySetting: (value: TelemetrySetting) => void
 	awsUsePromptCache?: boolean
 	setAwsUsePromptCache: (value: boolean) => void
 	maxImageFileSize: number
 	setMaxImageFileSize: (value: number) => void
 	maxTotalImageSize: number
 	setMaxTotalImageSize: (value: number) => void
-	machineId?: string
 	pinnedApiConfigs?: Record<string, boolean>
 	setPinnedApiConfigs: (value: Record<string, boolean>) => void
 	togglePinnedApiConfig: (configName: string) => void
@@ -222,6 +221,7 @@ export const createInitialExtensionState = (): ExtensionState => ({
 	diffFuzzyThreshold: DEFAULT_DIFF_FUZZY_THRESHOLD,
 	terminalShellIntegrationTimeout: 4000,
 	mcpEnabled: true,
+	enableMcpServerCreation: true,
 	taskSyncEnabled: false,
 	currentApiConfigName: "default",
 	listApiConfigMeta: [],
@@ -597,6 +597,8 @@ export const ExtensionStateContextProvider: React.FC<{
 			setState((prevState) => ({ ...prevState, terminalShellIntegrationDisabled: value })),
 		setTerminalZdotdir: (value) => setState((prevState) => ({ ...prevState, terminalZdotdir: value })),
 		setMcpEnabled: (value) => setState((prevState) => ({ ...prevState, mcpEnabled: value })),
+		setEnableMcpServerCreation: (value) =>
+			setState((prevState) => ({ ...prevState, enableMcpServerCreation: value })),
 		setTaskSyncEnabled: (value) => setState((prevState) => ({ ...prevState, taskSyncEnabled: value }) as any),
 		setCurrentApiConfigName: (value) => setState((prevState) => ({ ...prevState, currentApiConfigName: value })),
 		setListApiConfigMeta,
@@ -609,7 +611,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		setCustomModes: (value) => setState((prevState) => ({ ...prevState, customModes: value })),
 		setMaxOpenTabsContext: (value) => setState((prevState) => ({ ...prevState, maxOpenTabsContext: value })),
 		setMaxWorkspaceFiles: (value) => setState((prevState) => ({ ...prevState, maxWorkspaceFiles: value })),
-		setTelemetrySetting: (value) => setState((prevState) => ({ ...prevState, telemetrySetting: value })),
 		setShowRooIgnoredFiles: (value) => setState((prevState) => ({ ...prevState, showRooIgnoredFiles: value })),
 		setEnableSubfolderRules: (value) => setState((prevState) => ({ ...prevState, enableSubfolderRules: value })),
 		setAwsUsePromptCache: (value) => setState((prevState) => ({ ...prevState, awsUsePromptCache: value })),

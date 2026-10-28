@@ -23,6 +23,15 @@ const { parsePdf } = vi.hoisted(() => ({
 	parsePdf: vi.fn<(source: Uint8Array) => Promise<{ text: string }>>(),
 }))
 
+// pdf.js mis-clones Node Buffers (pool-backed copy, shifted offsets), so the
+// decoder must hand pdf-parse the supplied bytes as a plain Uint8Array.
+function expectPdfParsedFrom(source: Buffer) {
+	expect(parsePdf).toHaveBeenCalledOnce()
+	const [input] = parsePdf.mock.calls[0]
+	expect(Buffer.isBuffer(input)).toBe(false)
+	expect(input).toEqual(new Uint8Array(source))
+}
+
 vi.mock("pdf-parse/lib/pdf-parse", () => ({ default: parsePdf }))
 
 describe("document decoders", () => {
@@ -48,8 +57,7 @@ describe("document decoders", () => {
 		const readFile = vi.spyOn(fs, "readFile").mockRejectedValue(new Error("Unexpected pathname read"))
 
 		expect(await extractTextFromBuffer(source, "missing.PDF")).toBe(expected)
-		expect(parsePdf).toHaveBeenCalledExactlyOnceWith(new Uint8Array(source))
-		expect(Buffer.isBuffer(parsePdf.mock.calls[0][0])).toBe(false)
+		expectPdfParsedFrom(source)
 		expect(access).not.toHaveBeenCalled()
 		expect(readFile).not.toHaveBeenCalled()
 	})
@@ -78,7 +86,7 @@ describe("document decoders", () => {
 		const probe = vi.spyOn(binaryFile, "isBinaryFile")
 
 		await expect(extractTextFromBuffer(source, "corrupted.pdf")).rejects.toBe(failure)
-		expect(parsePdf).toHaveBeenCalledExactlyOnceWith(new Uint8Array(source))
+		expectPdfParsedFrom(source)
 		expect(probe).not.toHaveBeenCalled()
 	})
 

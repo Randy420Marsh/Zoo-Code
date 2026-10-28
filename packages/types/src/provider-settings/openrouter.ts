@@ -15,5 +15,12 @@ export const openRouterProviderDefinition = createProviderDefinition({
 		[OPEN_ROUTER_MODEL_ID_FIELD]: z.string().optional(),
 		openRouterBaseUrl: z.string().optional(),
 		openRouterSpecificProvider: z.string().optional(),
+		openRouterStreaming: z.boolean().optional(),
+		openRouterAllowImageInput: z.boolean().optional(),
+		openRouterAllowVideoInput: z.boolean().optional(),
+		openRouterAllowAudioInput: z.boolean().optional(),
+		openRouterAllowImageGeneration: z.boolean().optional(),
+		openRouterAllowVideoGeneration: z.boolean().optional(),
+		openRouterAllowAudioGeneration: z.boolean().optional(),
 	},
 })

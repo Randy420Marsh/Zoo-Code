@@ -84,6 +84,57 @@ describe("prepareApiConversationMessage", () => {
 		])
 	})
 
+	it("stores the provider reasoning summary instead of replacing it with []", () => {
+		const summary = [{ type: "summary_text", text: "kept" }]
+		const api = {
+			createMessage: vi.fn<ApiHandler["createMessage"]>(),
+			getModel: vi.fn<ApiHandler["getModel"]>(),
+			countTokens: vi.fn<ApiHandler["countTokens"]>(),
+			getModelCacheScope: vi.fn<ApiHandler["getModelCacheScope"]>(),
+			getEncryptedContent: () => ({ encrypted_content: "encrypted", id: "reasoning-1", summary }),
+		}
+		const result = prepareApiConversationMessage({
+			message: { role: "assistant", content: [{ type: "text", text: "answer" }] },
+			api,
+			apiConfiguration: { apiProvider: providerIdentifiers.openrouter, openRouterModelId: "openai/gpt-4" },
+			apiConversationHistory: [],
+		})
+
+		expect(result.content).toEqual([
+			{ type: "reasoning", summary, encrypted_content: "encrypted", id: "reasoning-1" },
+			{ type: "text", text: "answer" },
+		])
+	})
+
+	it("keeps the provider summary when visible reasoning text is also stored", () => {
+		const summary = [{ type: "summary_text", text: "kept" }]
+		const api = {
+			createMessage: vi.fn<ApiHandler["createMessage"]>(),
+			getModel: vi.fn<ApiHandler["getModel"]>(),
+			countTokens: vi.fn<ApiHandler["countTokens"]>(),
+			getModelCacheScope: vi.fn<ApiHandler["getModelCacheScope"]>(),
+			getEncryptedContent: () => ({ encrypted_content: "encrypted", id: "reasoning-1", summary }),
+		}
+		const result = prepareApiConversationMessage({
+			message: { role: "assistant", content: [{ type: "text", text: "answer" }] },
+			reasoning: "visible reasoning",
+			api,
+			apiConfiguration: { apiProvider: providerIdentifiers.openaiCodex },
+			apiConversationHistory: [],
+		})
+
+		expect(result.content).toEqual([
+			{
+				type: "reasoning",
+				text: "visible reasoning",
+				summary,
+				encrypted_content: "encrypted",
+				id: "reasoning-1",
+			},
+			{ type: "text", text: "answer" },
+		])
+	})
+
 	it.each(["reasoning-1", undefined])("preserves encrypted reasoning alongside its visible text (id: %s)", (id) => {
 		const api = {
 			createMessage: vi.fn<ApiHandler["createMessage"]>(),

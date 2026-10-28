@@ -1,6 +1,7 @@
 import { spawn } from "child_process"
 import * as path from "path"
 
+import { PRIVACY_LAUNCH_ARGS } from "../privacyLaunchArgs"
 import { readPhaseResult, type RestartPhase, type PhaseResult } from "./phaseProtocol"
 import type { ScenarioWorkspace } from "./scenarioWorkspace"
 
@@ -41,6 +42,7 @@ function phaseArguments(options: RestartCoordinatorOptions): string[] {
 		"--skip-welcome",
 		"--skip-release-notes",
 		"--disable-workspace-trust",
+		...PRIVACY_LAUNCH_ARGS,
 		`--extensionTestsPath=${options.extensionTestsPath}`,
 		`--extensionDevelopmentPath=${options.extensionDevelopmentPath}`,
 	]

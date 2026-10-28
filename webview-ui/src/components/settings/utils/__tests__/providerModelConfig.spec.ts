@@ -267,11 +267,13 @@ describe("providerModelConfig", () => {
 			expect(PROVIDERS_WITH_CUSTOM_MODEL_UI).toContain(providerIdentifiers.ollama)
 			expect(PROVIDERS_WITH_CUSTOM_MODEL_UI).toContain(providerIdentifiers.lmstudio)
 			expect(PROVIDERS_WITH_CUSTOM_MODEL_UI).toContain(providerIdentifiers.vscodeLm)
+			expect(PROVIDERS_WITH_CUSTOM_MODEL_UI).toContain(providerIdentifiers.xai)
+			expect(PROVIDERS_WITH_CUSTOM_MODEL_UI).toContain(providerIdentifiers.gemini)
 		})
 
 		it("does not include static providers using generic picker", () => {
 			expect(PROVIDERS_WITH_CUSTOM_MODEL_UI).not.toContain("anthropic")
-			expect(PROVIDERS_WITH_CUSTOM_MODEL_UI).not.toContain("gemini")
+			expect(PROVIDERS_WITH_CUSTOM_MODEL_UI).not.toContain("vertex")
 			expect(PROVIDERS_WITH_CUSTOM_MODEL_UI).not.toContain("bedrock")
 		})
 	})
@@ -280,7 +282,7 @@ describe("providerModelConfig", () => {
 		it("returns true for static providers without custom UI", () => {
 			expect(shouldUseGenericModelPicker("anthropic")).toBe(true)
 			expect(shouldUseGenericModelPicker("bedrock")).toBe(true)
-			expect(shouldUseGenericModelPicker("gemini")).toBe(true)
+			expect(shouldUseGenericModelPicker("vertex")).toBe(true)
 			expect(shouldUseGenericModelPicker("deepseek")).toBe(true)
 		})
 
@@ -289,6 +291,8 @@ describe("providerModelConfig", () => {
 			expect(shouldUseGenericModelPicker("ollama")).toBe(false)
 			expect(shouldUseGenericModelPicker("lmstudio")).toBe(false)
 			expect(shouldUseGenericModelPicker(providerIdentifiers.vscodeLm)).toBe(false)
+			expect(shouldUseGenericModelPicker(providerIdentifiers.xai)).toBe(false)
+			expect(shouldUseGenericModelPicker(providerIdentifiers.gemini)).toBe(false)
 		})
 
 		it("returns false for providers without static models", () => {

@@ -479,7 +479,7 @@ describe("openClineInNewTab", () => {
 			expect.any(Number),
 			expect.objectContaining({
 				enableScripts: true,
-				retainContextWhenHidden: true,
+				retainContextWhenHidden: false,
 			}),
 		)
 	})

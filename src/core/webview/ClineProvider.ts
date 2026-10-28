@@ -101,6 +101,7 @@ import { SkillsManager } from "../../services/skills/SkillsManager"
 import { fileExistsAtPath } from "../../utils/fs"
 import { setTtsEnabled, setTtsSpeed } from "../../utils/tts"
 import { getWorkspaceGitInfo } from "../../utils/git"
+import { focusPanel } from "../../utils/focusPanel"
 import { getWorkspacePath } from "../../utils/path"
 import { OrganizationAllowListViolationError } from "../../utils/errors"
 
@@ -243,6 +244,16 @@ export class ClineProvider
 	private taskEventListeners: WeakMap<Task, Array<() => void>> = new WeakMap()
 	private currentWorkspacePath: string | undefined
 	private _disposed = false
+	private lastWebviewHeartbeatAt = 0
+	private webviewWatchdogInterval: ReturnType<typeof setInterval> | null = null
+	private webviewVisibleRecoveryTimer: ReturnType<typeof setTimeout> | null = null
+	private webviewRecoveryAttempts = 0
+	private static readonly WEBVIEW_WATCHDOG_TICK_MS = 60_000
+	private static readonly WEBVIEW_HEARTBEAT_STALE_MS = 90_000
+	/** A live renderer heartbeats on show. A dead one cannot; reload without waiting out the 90s watchdog. */
+	private static readonly WEBVIEW_VISIBLE_RECOVERY_MS = 5_000
+	private static readonly WEBVIEW_AUTO_RELOAD_COOLDOWN_MS = 30 * 60_000
+	private static readonly WEBVIEW_LAST_AUTO_RELOAD_KEY = "zooCode.webviewLastAutoWindowReloadAt"
 	private readonly _postStateToWebviewThrottled = debounce(
 		async () => {
 			try {
@@ -828,6 +839,7 @@ export class ClineProvider
 	*/
 	private clearWebviewResources() {
 		this.rejectPendingThemeFixtureProbes(new Error("Webview was disposed before the theme fixture probe completed"))
+		this.stopWebviewWatchdog()
 		while (this.webviewDisposables.length) {
 			const x = this.webviewDisposables.pop()
 			if (x) {
@@ -863,6 +875,7 @@ export class ClineProvider
 
 		this._disposed = true
 		this._postStateToWebviewThrottled.cancel()
+		this.stopWebviewWatchdog()
 		this.log("Disposing ClineProvider...")
 
 		// Reject any tasks still waiting for a scheduler permit so they don't
@@ -1083,11 +1096,7 @@ export class ClineProvider
 			localResourceRoots: resourceRoots,
 		}
 
-		const html =
-			this.contextProxy.extensionMode === vscode.ExtensionMode.Development &&
-			process.env.ROO_CODE_THEME_FIXTURE_PROBE !== "1"
-				? await this.getHMRHtmlContent(webviewView.webview)
-				: await this.getHtmlContent(webviewView.webview)
+		const html = await this.getWebviewHtml(webviewView.webview)
 
 		// The HTML load above can finish after the view was disposed or replaced.
 		// A stale resolve must not assign HTML to a view the provider no longer owns.
@@ -1138,6 +1147,9 @@ export class ClineProvider
 		this.setWebviewMessageListener(webviewView)
 		this.webviewDisposables.push(this.webviewFocusTracker.init(this, webviewView))
 
+		// Detect a dead webview renderer process (gray screen) via heartbeat timeout.
+		this.startWebviewWatchdog()
+
 		// Listen for when the panel becomes visible.
 		// https://github.com/microsoft/vscode-discussions/discussions/840
 		if ("onDidChangeViewState" in webviewView) {
@@ -1150,9 +1162,9 @@ export class ClineProvider
 				}
 
 				if (this.view?.visible) {
-					void this.postMessageToWebview({ type: "action", action: "didBecomeVisible" })
+					this.onWebviewBecameVisible()
 				} else {
-					this.logWebviewHiddenDiagnostics()
+					this.onWebviewBecameHidden()
 				}
 			})
 
@@ -1166,9 +1178,9 @@ export class ClineProvider
 				}
 
 				if (this.view?.visible) {
-					void this.postMessageToWebview({ type: "action", action: "didBecomeVisible" })
+					this.onWebviewBecameVisible()
 				} else {
-					this.logWebviewHiddenDiagnostics()
+					this.onWebviewBecameHidden()
 				}
 			})
 
@@ -1526,6 +1538,40 @@ export class ClineProvider
 		}
 	}
 
+	/**
+	 * Re-focus the chat input after an LLM-initiated editor action (e.g. opening
+	 * the diff view for a file edit) steals keyboard focus. Without this, the
+	 * user who was typing in the chat box suddenly has their keystrokes land in
+	 * the newly opened editor tab.
+	 *
+	 * Only a chat surface that is already visible is re-focused, and it is never
+	 * moved: revealing a hidden sidebar would yank the user out of another view,
+	 * and revealing a tab panel that shares the diff's editor group would cover
+	 * the diff the user is meant to review.
+	 */
+	public async focusChatInput(): Promise<void> {
+		const view = this.view
+		if (this._disposed || !view?.visible) {
+			return
+		}
+		try {
+			// WebviewView and WebviewPanel are interface types in the VS Code API
+			// (no runtime classes to instanceof against), so discriminate by a
+			// property each shape uniquely has: only WebviewPanel has `reveal`.
+			if ("reveal" in view) {
+				if (!view.active) {
+					view.reveal(view.viewColumn, false)
+				}
+			} else {
+				await focusPanel(undefined, view)
+			}
+			// Then move the DOM focus to the chat text input inside the webview.
+			await this.postMessageToWebview({ type: "action", action: "focusInput" })
+		} catch {
+			// Focus restoration is best-effort; never let it break the edit flow.
+		}
+	}
+
 	public requestWebviewThemeFixture(timeoutMs = 5_000): Promise<WebviewThemeFixture> {
 		if (process.env.ROO_CODE_THEME_FIXTURE_PROBE !== "1") {
 			return Promise.reject(new Error("Theme fixture probing is disabled"))
@@ -1636,8 +1682,8 @@ export class ClineProvider
 			`style-src ${webview.cspSource} 'unsafe-inline' https://* http://${localServerUrl} http://0.0.0.0:${localPort}`,
 			`img-src ${webview.cspSource} https://storage.googleapis.com https://img.clerk.com https://avatars.githubusercontent.com https://lh3.googleusercontent.com data:`,
 			`media-src ${webview.cspSource}`,
-			`script-src 'unsafe-eval' ${webview.cspSource} https://*.posthog.com http://${localServerUrl} http://0.0.0.0:${localPort} 'nonce-${nonce}'`,
-			`connect-src ${webview.cspSource} ${openRouterDomain} https://* https://*.posthog.com ws://${localServerUrl} ws://0.0.0.0:${localPort} http://${localServerUrl} http://0.0.0.0:${localPort}`,
+			`script-src 'unsafe-eval' ${webview.cspSource} http://${localServerUrl} http://0.0.0.0:${localPort} 'nonce-${nonce}'`,
+			`connect-src ${webview.cspSource} ${openRouterDomain} https://* ws://${localServerUrl} ws://0.0.0.0:${localPort} http://${localServerUrl} http://0.0.0.0:${localPort}`,
 		]
 
 		return /*html*/ `
@@ -1725,7 +1771,7 @@ export class ClineProvider
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
             <meta name="theme-color" content="#000000">
-            <meta http-equiv="Content-Security-Policy" content="default-src 'none'; font-src ${webview.cspSource} data:; style-src ${webview.cspSource} 'unsafe-inline'; img-src ${webview.cspSource} https://storage.googleapis.com https://img.clerk.com https://avatars.githubusercontent.com https://lh3.googleusercontent.com data:; media-src ${webview.cspSource}; script-src ${webview.cspSource} 'wasm-unsafe-eval' 'nonce-${nonce}' 'strict-dynamic'; connect-src ${webview.cspSource} ${openRouterDomain} https://api.requesty.ai https://us.i.posthog.com;">
+            <meta http-equiv="Content-Security-Policy" content="default-src 'none'; font-src ${webview.cspSource} data:; style-src ${webview.cspSource} 'unsafe-inline'; img-src ${webview.cspSource} https://storage.googleapis.com https://img.clerk.com https://avatars.githubusercontent.com https://lh3.googleusercontent.com data:; media-src ${webview.cspSource}; script-src ${webview.cspSource} 'wasm-unsafe-eval' 'nonce-${nonce}' 'strict-dynamic'; connect-src ${webview.cspSource} ${openRouterDomain} https://api.requesty.ai;">
             <link rel="stylesheet" type="text/css" href="${stylesUri}">
 			<link href="${codiconsUri}" rel="stylesheet" />
 			<script nonce="${nonce}">
@@ -2838,6 +2884,7 @@ export class ClineProvider
 			terminalZdotdir,
 			terminalProfile,
 			mcpEnabled,
+			enableMcpServerCreation,
 			currentApiConfigName,
 			listApiConfigMeta,
 			pinnedApiConfigs,
@@ -2911,9 +2958,6 @@ export class ClineProvider
 			// Ignore this error.
 		}
 
-		const telemetryKey = process.env.POSTHOG_API_KEY
-		const machineId = vscode.env.machineId
-		const vscodeTelemetryEnabled = vscode.env.isTelemetryEnabled
 		const mergedAllowedCommands = this.mergeAllowedCommands(allowedCommands)
 		const mergedDeniedCommands = this.mergeDeniedCommands(deniedCommands)
 		const cwd = this.cwd
@@ -2993,8 +3037,7 @@ export class ClineProvider
 			ttsSpeed: ttsSpeed ?? 1.0,
 			enableCheckpoints: enableCheckpoints ?? true,
 			checkpointTimeout: checkpointTimeout ?? DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
-			shouldShowAnnouncement:
-				telemetrySetting !== "unset" && lastShownAnnouncementId !== this.latestAnnouncementId,
+			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
 			allowedCommands: mergedAllowedCommands,
 			deniedCommands: mergedDeniedCommands,
 			soundVolume: soundVolume ?? 0.5,
@@ -3012,6 +3055,7 @@ export class ClineProvider
 			terminalZdotdir: terminalZdotdir ?? false,
 			terminalProfile,
 			mcpEnabled: mcpEnabled ?? true,
+			enableMcpServerCreation: enableMcpServerCreation ?? true,
 			currentApiConfigName: currentTask ? currentTaskApiConfigName : currentApiConfigName,
 			listApiConfigMeta: listApiConfigMeta ?? [],
 			pinnedApiConfigs: pinnedApiConfigs ?? {},
@@ -3028,9 +3072,6 @@ export class ClineProvider
 			cwd,
 			disabledTools,
 			telemetrySetting,
-			telemetryKey,
-			machineId,
-			vscodeTelemetryEnabled,
 			showRooIgnoredFiles: showRooIgnoredFiles ?? false,
 			enableSubfolderRules: enableSubfolderRules ?? false,
 			language: language ?? formatLanguage(vscode.env.language),
@@ -3252,6 +3293,7 @@ export class ClineProvider
 			mode: stateValues.mode ?? defaultModeSlug,
 			language: stateValues.language ?? formatLanguage(vscode.env.language),
 			mcpEnabled: stateValues.mcpEnabled ?? true,
+			enableMcpServerCreation: stateValues.enableMcpServerCreation ?? true,
 			mcpServers: this.mcpHub?.getAllServers() ?? [],
 			currentApiConfigName: stateValues.currentApiConfigName ?? "default",
 			listApiConfigMeta: stateValues.listApiConfigMeta ?? [],
@@ -3508,6 +3550,145 @@ export class ClineProvider
 				`  timestamp:    ${new Date().toISOString()}\n` +
 				`If the panel appears gray after this, share this log with support@zoocode.dev`,
 		)
+	}
+
+	/** Records that the webview renderer is alive; called on every webviewHeartbeat message. */
+	public updateWebviewHeartbeat(): void {
+		this.lastWebviewHeartbeatAt = Date.now()
+		this.webviewRecoveryAttempts = 0
+		this.clearVisibleRecoveryTimer()
+	}
+
+	/**
+	 * The tab-switch recovery. A live renderer answers didBecomeVisible with a
+	 * heartbeat and is left alone. A dead renderer cannot, so HTML is reloaded
+	 * after a short grace instead of waiting for the 90s watchdog. This does not
+	 * stamp a fake heartbeat: that used to delay recovery of a gray visible view.
+	 */
+	private onWebviewBecameVisible(): void {
+		void this.postMessageToWebview({ type: "action", action: "didBecomeVisible" })
+		this.clearVisibleRecoveryTimer()
+		const armedAt = Date.now()
+		this.webviewVisibleRecoveryTimer = setTimeout(() => {
+			this.webviewVisibleRecoveryTimer = null
+			if (this.view?.visible !== true || this.lastWebviewHeartbeatAt >= armedAt) {
+				return
+			}
+			if (this.webviewRecoveryAttempts !== 0) {
+				return
+			}
+			this.webviewRecoveryAttempts = 1
+			this.log("[Zoo Code] Webview visible with no heartbeat; reloading webview (dead renderer?)")
+			void this.reloadWebviewForRecovery()
+		}, ClineProvider.WEBVIEW_VISIBLE_RECOVERY_MS)
+	}
+
+	private onWebviewBecameHidden(): void {
+		this.clearVisibleRecoveryTimer()
+		this.logWebviewHiddenDiagnostics()
+	}
+
+	private clearVisibleRecoveryTimer(): void {
+		if (this.webviewVisibleRecoveryTimer) {
+			clearTimeout(this.webviewVisibleRecoveryTimer)
+			this.webviewVisibleRecoveryTimer = null
+		}
+	}
+
+	/**
+	 * Starts (or restarts) the watchdog that detects a dead webview renderer
+	 * process. Hidden webviews throttle timers, so becoming visible resets the
+	 * grace window instead of counting throttled heartbeats as a crash.
+	 */
+	private startWebviewWatchdog(): void {
+		this.updateWebviewHeartbeat()
+		if (this.webviewWatchdogInterval) {
+			clearInterval(this.webviewWatchdogInterval)
+		}
+		this.webviewWatchdogInterval = setInterval(() => {
+			if (this.view?.visible !== true) {
+				return
+			}
+			if (Date.now() - this.lastWebviewHeartbeatAt <= ClineProvider.WEBVIEW_HEARTBEAT_STALE_MS) {
+				return
+			}
+			// Replacing HTML only reloads the document. If the renderer itself died,
+			// it may never reach the document, as seen in the repeated stale-heartbeat
+			// logs. Require a real heartbeat before considering recovery successful.
+			this.webviewRecoveryAttempts++
+			if (this.webviewRecoveryAttempts === 1) {
+				this.log("[Zoo Code] Webview heartbeat stale while visible; reloading webview (dead renderer?)")
+				void this.reloadWebviewForRecovery()
+			} else if (this.webviewRecoveryAttempts === 2) {
+				this.log("[Zoo Code] Webview did not recover after HTML reload; asking the editor to reload webviews")
+				void vscode.commands
+					.executeCommand("workbench.action.webview.reloadWebviewAction")
+					.then(undefined, (error) => this.log(`[Zoo Code] Failed to reload webviews: ${String(error)}`))
+			} else if (this.webviewRecoveryAttempts === 3) {
+				this.log("[Zoo Code] Webview still unresponsive after editor reload; offering window recovery")
+				void this.offerWindowRecovery()
+			}
+		}, ClineProvider.WEBVIEW_WATCHDOG_TICK_MS)
+	}
+
+	private async offerWindowRecovery(): Promise<void> {
+		try {
+			// Reloading the window interrupts active tasks. Never do that silently;
+			// the native notification remains usable even if the webview is gray.
+			// Persist a cooldown so a renderer that fails at startup cannot put the
+			// editor into an automatic window-reload loop.
+			const lastAutoReload =
+				this.context.workspaceState.get<number>(ClineProvider.WEBVIEW_LAST_AUTO_RELOAD_KEY) ?? 0
+			const canAutoReload = Date.now() - lastAutoReload >= ClineProvider.WEBVIEW_AUTO_RELOAD_COOLDOWN_MS
+			if (!canAutoReload || ClineProvider.getAllInstances().some((instance) => instance.getCurrentTask())) {
+				const choice = await vscode.window.showWarningMessage(
+					"Zoo Code's view stopped responding. Reload the window to recover it? Running tasks will be interrupted.",
+					"Reload Window",
+				)
+				if (choice !== "Reload Window") {
+					return
+				}
+			} else {
+				await this.context.workspaceState.update(ClineProvider.WEBVIEW_LAST_AUTO_RELOAD_KEY, Date.now())
+			}
+			await vscode.commands.executeCommand("workbench.action.reloadWindow")
+		} catch (error) {
+			this.log(`[Zoo Code] Failed to recover window: ${String(error)}`)
+		}
+	}
+
+	/** Stops the renderer heartbeat watchdog; the webview it watches is gone. */
+	private stopWebviewWatchdog(): void {
+		this.clearVisibleRecoveryTimer()
+		if (this.webviewWatchdogInterval) {
+			clearInterval(this.webviewWatchdogInterval)
+			this.webviewWatchdogInterval = null
+		}
+	}
+
+	/**
+	 * Reloads only this provider's own webview by regenerating its HTML (fresh
+	 * nonce) and reassigning `webview.html`, which forces VS Code to reload that
+	 * webview. Works for both sidebar (WebviewView) and tab (WebviewPanel) shapes.
+	 */
+	private async reloadWebviewForRecovery(): Promise<void> {
+		const view = this.view
+		if (!view?.webview) {
+			return
+		}
+		try {
+			view.webview.html = await this.getWebviewHtml(view.webview)
+		} catch (error) {
+			this.log(`[Zoo Code] Failed to reload webview: ${error instanceof Error ? error.message : String(error)}`)
+		}
+	}
+
+	/** Builds the webview HTML using the same path as resolveWebviewView (HMR in development). */
+	private async getWebviewHtml(webview: vscode.Webview): Promise<string> {
+		return this.contextProxy.extensionMode === vscode.ExtensionMode.Development &&
+			process.env.ROO_CODE_THEME_FIXTURE_PROBE !== "1"
+			? await this.getHMRHtmlContent(webview)
+			: await this.getHtmlContent(webview)
 	}
 
 	public getRecentTasks(): string[] {

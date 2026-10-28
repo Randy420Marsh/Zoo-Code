@@ -13,7 +13,7 @@ import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { getOpenRouterAuthUrl } from "@src/oauth/urls"
 import { VSCodeButtonLink } from "@src/components/common/VSCodeButtonLink"
 
-import { inputEventTransform } from "../transforms"
+import { inputEventTransform, noTransform } from "../transforms"
 
 import { ModelPicker } from "../ModelPicker"
 import { OpenRouterBalanceDisplay } from "./OpenRouterBalanceDisplay"
@@ -115,6 +115,50 @@ export const OpenRouter = ({
 				errorMessage={modelValidationError}
 				simplifySettings={simplifySettings}
 			/>
+			{!simplifySettings && (
+				<div className="space-y-3">
+					<div>
+						<Checkbox
+							checked={apiConfiguration.openRouterStreaming !== false}
+							onChange={handleInputChange("openRouterStreaming", noTransform)}>
+							{t("settings:providers.openRouterStreaming")}
+						</Checkbox>
+						<div className="text-sm text-vscode-descriptionForeground ml-6">
+							{t("settings:providers.openRouterStreamingDescription")}
+						</div>
+					</div>
+					<Checkbox
+						checked={apiConfiguration.openRouterAllowImageInput !== false}
+						onChange={handleInputChange("openRouterAllowImageInput", noTransform)}>
+						{t("settings:providers.openRouterAllowImageInput")}
+					</Checkbox>
+					<Checkbox
+						checked={apiConfiguration.openRouterAllowVideoInput !== false}
+						onChange={handleInputChange("openRouterAllowVideoInput", noTransform)}>
+						{t("settings:providers.openRouterAllowVideoInput")}
+					</Checkbox>
+					<Checkbox
+						checked={apiConfiguration.openRouterAllowAudioInput !== false}
+						onChange={handleInputChange("openRouterAllowAudioInput", noTransform)}>
+						{t("settings:providers.openRouterAllowAudioInput")}
+					</Checkbox>
+					<Checkbox
+						checked={apiConfiguration.openRouterAllowImageGeneration === true}
+						onChange={handleInputChange("openRouterAllowImageGeneration", noTransform)}>
+						{t("settings:providers.openRouterAllowImageGeneration")}
+					</Checkbox>
+					<Checkbox
+						checked={apiConfiguration.openRouterAllowVideoGeneration === true}
+						onChange={handleInputChange("openRouterAllowVideoGeneration", noTransform)}>
+						{t("settings:providers.openRouterAllowVideoGeneration")}
+					</Checkbox>
+					<Checkbox
+						checked={apiConfiguration.openRouterAllowAudioGeneration === true}
+						onChange={handleInputChange("openRouterAllowAudioGeneration", noTransform)}>
+						{t("settings:providers.openRouterAllowAudioGeneration")}
+					</Checkbox>
+				</div>
+			)}
 		</>
 	)
 }

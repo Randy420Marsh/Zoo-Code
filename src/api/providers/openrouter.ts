@@ -51,6 +51,8 @@ type OpenRouterChatCompletionParams = OpenAI.Chat.ChatCompletionCreateParams & {
 	include_reasoning?: boolean
 	// https://openrouter.ai/docs/use-cases/reasoning-tokens
 	reasoning?: OpenRouterReasoningParams
+	// https://openrouter.ai/docs/guides/best-practices/prompt-caching#using-session_id-for-sticky-sessions
+	session_id?: string
 }
 
 // Zod schema for OpenRouter error response structure (for caught exceptions)
@@ -125,6 +127,7 @@ interface CompletionUsage {
 	prompt_tokens?: number
 	prompt_tokens_details?: {
 		cached_tokens?: number
+		cache_write_tokens?: number
 	}
 	total_tokens?: number
 	cost?: number
@@ -316,14 +319,15 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 		}
 
 		// https://openrouter.ai/docs/transforms
+		const useStreaming = this.options.openRouterStreaming !== false
 		const completionParams: OpenRouterChatCompletionParams = {
 			model: modelId,
 			...(maxTokens && maxTokens > 0 && { max_tokens: maxTokens }),
 			temperature,
 			top_p: topP,
 			messages: openAiMessages,
-			stream: true,
-			stream_options: { include_usage: true },
+			stream: useStreaming,
+			...(useStreaming ? { stream_options: { include_usage: true } } : {}),
 			// Only include provider if openRouterSpecificProvider is not "[default]".
 			...(this.options.openRouterSpecificProvider &&
 				this.options.openRouterSpecificProvider !== OPENROUTER_DEFAULT_PROVIDER_NAME && {
@@ -334,6 +338,7 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 					},
 				}),
 			...(reasoning && { reasoning }),
+			...(metadata?.taskId ? { session_id: metadata.taskId.slice(0, 256) } : {}),
 			tools: this.convertToolsForOpenAI(metadata?.tools),
 			tool_choice: metadata?.tool_choice,
 		}
@@ -343,9 +348,9 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 			? { headers: { "x-anthropic-beta": "fine-grained-tool-streaming-2025-05-14" } }
 			: undefined
 
-		let stream
+		let responseOrStream
 		try {
-			stream = await this.client.chat.completions.create(completionParams, requestOptions)
+			responseOrStream = await this.client.chat.completions.create(completionParams, requestOptions)
 		} catch (error) {
 			// Try to parse as OpenRouter error structure using Zod
 			const parseResult = OpenRouterErrorResponseSchema.safeParse(error)
@@ -385,6 +390,59 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 				throw handleOpenAIError(error, this.providerName)
 			}
 		}
+
+		if (!useStreaming) {
+			if (responseOrStream && typeof responseOrStream === "object" && "error" in responseOrStream) {
+				this.handleStreamingError(
+					(responseOrStream as { error: OpenRouterError }).error,
+					modelId,
+					"createMessage",
+				)
+			}
+			const completion = responseOrStream as OpenAI.Chat.ChatCompletion & { usage?: CompletionUsage }
+			const message = completion.choices?.[0]?.message as
+				(OpenAI.Chat.ChatCompletionMessage & { reasoning?: string }) | undefined
+			if (message?.reasoning) {
+				yield { type: "reasoning", text: message.reasoning }
+			}
+			if (message?.content) {
+				yield { type: "text", text: message.content }
+			}
+			if (Array.isArray(message?.tool_calls)) {
+				for (const [index, toolCall] of message.tool_calls.entries()) {
+					if (toolCall.type !== "function") {
+						continue
+					}
+					yield {
+						type: "tool_call_partial",
+						index,
+						id: toolCall.id,
+						name: toolCall.function.name,
+						arguments: toolCall.function.arguments,
+					}
+					if (toolCall.id) {
+						yield { type: "tool_call_end", id: toolCall.id }
+					}
+				}
+			}
+			if (completion.usage) {
+				yield {
+					type: "usage",
+					inputTokens: completion.usage.prompt_tokens || 0,
+					outputTokens: completion.usage.completion_tokens || 0,
+					cacheReadTokens: completion.usage.prompt_tokens_details?.cached_tokens,
+					...(completion.usage.prompt_tokens_details?.cache_write_tokens !== undefined
+						? { cacheWriteTokens: completion.usage.prompt_tokens_details.cache_write_tokens }
+						: {}),
+					reasoningTokens: completion.usage.completion_tokens_details?.reasoning_tokens,
+					totalCost:
+						(completion.usage.cost_details?.upstream_inference_cost || 0) + (completion.usage.cost || 0),
+				}
+			}
+			return
+		}
+
+		const stream = responseOrStream as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>
 
 		let lastUsage: CompletionUsage | undefined = undefined
 		// Accumulator for reasoning_details FROM the API.
@@ -543,6 +601,9 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 				inputTokens: lastUsage.prompt_tokens || 0,
 				outputTokens: lastUsage.completion_tokens || 0,
 				cacheReadTokens: lastUsage.prompt_tokens_details?.cached_tokens,
+				...(lastUsage.prompt_tokens_details?.cache_write_tokens !== undefined
+					? { cacheWriteTokens: lastUsage.prompt_tokens_details.cache_write_tokens }
+					: {}),
 				reasoningTokens: lastUsage.completion_tokens_details?.reasoning_tokens,
 				totalCost: (lastUsage.cost_details?.upstream_inference_cost || 0) + (lastUsage.cost || 0),
 			}
@@ -585,6 +646,35 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 
 		// Apply tool preferences for models accessed through routers (OpenAI, Gemini)
 		info = applyRouterToolPreferences(id, info)
+
+		if (
+			this.options.openRouterAllowImageInput !== undefined ||
+			this.options.openRouterAllowVideoInput !== undefined ||
+			this.options.openRouterAllowAudioInput !== undefined ||
+			this.options.openRouterAllowImageGeneration !== undefined ||
+			this.options.openRouterAllowVideoGeneration !== undefined ||
+			this.options.openRouterAllowAudioGeneration !== undefined
+		) {
+			info = { ...info }
+			if (this.options.openRouterAllowImageInput === false) {
+				info.supportsImages = false
+			}
+			if (this.options.openRouterAllowVideoInput === false) {
+				info.supportsVideoInput = false
+			}
+			if (this.options.openRouterAllowAudioInput === false) {
+				info.supportsAudioInput = false
+			}
+			if (this.options.openRouterAllowImageGeneration !== undefined) {
+				info.supportsImageGeneration = this.options.openRouterAllowImageGeneration === true
+			}
+			if (this.options.openRouterAllowVideoGeneration !== undefined) {
+				info.supportsVideoGeneration = this.options.openRouterAllowVideoGeneration === true
+			}
+			if (this.options.openRouterAllowAudioGeneration !== undefined) {
+				info.supportsAudioGeneration = this.options.openRouterAllowAudioGeneration === true
+			}
+		}
 
 		const isDeepSeekR1 = id.startsWith("deepseek/deepseek-r1") || id === "perplexity/sonar-reasoning"
 

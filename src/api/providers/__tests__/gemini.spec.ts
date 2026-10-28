@@ -19,6 +19,7 @@ import { type ModelInfo, geminiDefaultModelId, ApiProviderError } from "@roo-cod
 import { t } from "i18next"
 import type { ApiHandlerCreateMessageMetadata } from "../../index"
 import { GeminiHandler } from "../gemini"
+import { mapGeminiApiModel } from "../fetchers/gemini"
 import { asyncStreamFrom, collectStream } from "../../../test-utils/stream"
 
 const GEMINI_MODEL_NAME = geminiDefaultModelId
@@ -1066,6 +1067,43 @@ describe("GeminiHandler", () => {
 			const includedCount = modelInfo.info.includedTools!.filter((t: string) => t === "edit").length
 			expect(excludedCount).toBe(1)
 			expect(includedCount).toBe(1)
+		})
+
+		it("applies geminiAllow* modality toggles on getModel()", () => {
+			const toggledHandler = new GeminiHandler({
+				apiKey: "test-key",
+				geminiApiKey: "test-key",
+				apiModelId: "gemini-3.8-flash",
+				geminiAllowImageInput: false,
+				geminiAllowVideoInput: false,
+				geminiAllowAudioInput: false,
+				geminiAllowImageGeneration: true,
+				geminiAllowVideoGeneration: true,
+				geminiAllowAudioGeneration: true,
+			})
+			const { info } = toggledHandler.getModel()
+			expect(info.supportsImages).toBe(false)
+			expect(info.supportsVideoInput).toBe(false)
+			expect(info.supportsAudioInput).toBe(false)
+			expect(info.supportsImageGeneration).toBe(true)
+			expect(info.supportsVideoGeneration).toBe(true)
+			expect(info.supportsAudioGeneration).toBe(true)
+		})
+
+		it("maps live /v1beta/models entries via mapGeminiApiModel", () => {
+			const mapped = mapGeminiApiModel({
+				id: "models/gemini-3.8-flash",
+				displayName: "Gemini 3.8 Flash",
+				inputTokenLimit: 1048576,
+				outputTokenLimit: 65536,
+				thinking: true,
+			})
+			expect(mapped).toBeDefined()
+			expect(mapped.contextWindow).toBe(1048576)
+			expect(mapped.maxTokens).toBe(65536)
+			expect(mapped.supportsImages).toBe(true)
+			expect(mapped.supportsVideoInput).toBe(true)
+			expect(mapped.supportsAudioInput).toBe(true)
 		})
 	})
 

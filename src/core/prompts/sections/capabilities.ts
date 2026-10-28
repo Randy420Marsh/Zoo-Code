@@ -69,6 +69,18 @@ export function getCapabilitiesSection(policy: EffectiveToolPolicy): string {
 		body += `- You can use the execute_command tool to run commands on the user's computer whenever you feel it can help accomplish the user's task. When you need to execute a CLI command, you must provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, since they are more flexible and easier to run. Interactive and long-running commands are allowed, since the commands are run in the user's VSCode terminal. The user may keep commands running in the background and you will be kept updated on their status along the way. Each command you execute is run in a new terminal instance.\n`
 	}
 
+	if (tools.has("generate_image")) {
+		body += `- You can use the generate_image tool to generate or edit images inside the workspace (supporting xAI grok-imagine-image-2.0, Google Gemini native image models, and OpenRouter image models, including cross-provider fallback when an API key is configured). Always prefer the generate_image tool over raw curl/HTTP requests for image tasks, keep all reads and writes inside the current workspace directory unless explicitly asked, and never delete generated or intermediate media files unless the user asks.\n`
+	}
+
+	if (policy.supportsVideoGeneration) {
+		body += `- Video generation and editing is enabled for this session (e.g., xAI grok-imagine-video-2.0, Google Gemini Veo / Gemini Omni Flash, or OpenRouter video generation endpoints). Keep all video reads and writes inside the current workspace directory unless explicitly asked, and never delete generated videos or intermediate JSON/URL artifacts unless the user asks.\n`
+	}
+
+	if (policy.supportsAudioGeneration) {
+		body += `- Audio and speech generation is enabled for this session (e.g., xAI speech/voice endpoints, Google Gemini TTS gemini-3.8-flash-tts / Lyria 3.5, or OpenRouter audio endpoints). Keep all audio reads and writes inside the current workspace directory unless explicitly asked, and never delete generated audio or intermediate artifacts unless the user asks.\n`
+	}
+
 	// MCP bullet — only when MCP is effectively available (group + enabled tools/resources).
 	if (policy.hasMcpGroup && (policy.hasMcpTools || policy.hasMcpResources)) {
 		body += `- You have access to MCP servers that may provide additional tools and/or resources actually available to this mode. Each server may provide different capabilities that you can use to accomplish tasks more effectively.\n`
